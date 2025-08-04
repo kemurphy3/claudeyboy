@@ -68,57 +68,42 @@ print(paste0('First year-month of input data = ', startDate_checked, '. Last yea
 ```
 
 
-```{r load data, results = F}
-# Load CRAN packages
-library(neonUtilities) # functions to download portal data
-library(neonOS) # function for dup checking, recommend using the CRAN version
-library(devtools)# functions for interacting with packages (if needed)
-library(tidyverse) # these functions are used in the template to work with data frames
+```{r setup_packages, results = F, eval = TRUE, cache = FALSE, dependson = NULL}
+# Load required packages
+library(neonOSqc)
+library(neonUtilities)
+library(neonOS)
+library(DT)
+library(glue)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(restR2)
 
-# Install packages from GitHub if not done or not updated in a while - else comment out
-# Note that 'install_local' can also work, as long as repo is synced should be same outcome
-# install_github('NEONScience/neonOSqc') 
-# install_github("NEONScience/restR2") 
+# Set DT options for consistent table formatting
+dtOptions <- list(
+  dom = 'Bfrtip',
+  buttons = c('copy', 'csv', 'excel'),
+  pageLength = 25,
+  scrollX = TRUE
+)
+```
+```{r load_data_with_params, results = F, eval = TRUE, cache = FALSE, dependson = NULL}
+# Set date variables for FSP QC report
+startDate_checked <- "2022-01"  # Start date for data download
+endDate_checked <- "2022-12"    # End date for data download
 
-# Load internal NEON packages
-library(neonOSqc) # OS QC functions
-library(restR2) # if using restR2 calls directly
+print(paste0('First year-month of input data = ', startDate_checked, '. Last year-month of input data = ', endDate_checked, "."))
 
-# Set options for DT:datatables
-dtOptions = list(
-    paging = FALSE,
-    scrollX = TRUE,
-    scrollY = "42vh",
-    scrollCollapse = TRUE,
-    buttons = 'csv',
-    dom='B<"top"i>t',
-    columnDefs = list(
-      list(className = "dt-left", targets = "_all")
-    )
-  )
-
-# Set script type from render file
-scriptType <- params$monthlyAnnual
-annual = ifelse(scriptType == "annual", T, F) # optional, if the 'annual' parameter is used to set chunks to run or not based on one month vs annual data pull
+# Set script type
+scriptType <- "annual"
+annual = TRUE # Set to TRUE for annual data pull
 
 # What is the name and timestamp for the report? Need when outputs go to GCS
-reportTimestamp <- params$reportTimestamp
-reportName <- params$reportName
+reportTimestamp <- format(Sys.time(), "%Y%m%d%H%M%S")
+reportName <- paste0("fsp_annual_", format(Sys.Date(), "%Y"), "_", reportTimestamp)
 
-# Load portal data - FSP (expanded package to get all fields including downloadFileUrl)
-spectra <- try(neonUtilities::loadByProduct(
-  dpID='DP1.30012.001',
-  check.size=F, 
-  startdate = startDate_checked,
-  enddate = endDate_checked,
-  site = "all",
-  include.provisional = T,
-  package = "expanded",  # Important for getting downloadFileUrl
-  release = "LATEST",
-  token = Sys.getenv('NEON_PAT')), # remove this line if you don't have a token, though everyone is encouraged to get one
-  silent = T)
-
-# Load portal data - CFC (for cross-reference checks)
+# Load portal data - CFC (for cross-reference completeness checks)
 canopyFoliage <- try(neonUtilities::loadByProduct(
   dpID='DP1.10026.001',
   check.size=F, 
@@ -126,29 +111,50 @@ canopyFoliage <- try(neonUtilities::loadByProduct(
   enddate = endDate_checked,
   site = "all",
   include.provisional = T,
-  release = "LATEST",
-  token = Sys.getenv('NEON_PAT')),
+  #release = "LATEST",
+  token = Sys.getenv('NEON_PAT')), # Using NEON_PAT token
   silent = T)
 
-# if the data list has no data, then stop and don't run the script
-if(identical(names(spectra), "NONE")){
+
+# Load portal data - FSP (expanded package to include dataQF field)
+spectra <- try(neonUtilities::loadByProduct(
+  dpID='DP1.30012.001',
+  check.size=F, 
+  startdate = startDate_checked,
+  enddate = endDate_checked,
+  site = "all",
+  include.provisional = T,
+  package = "expanded",  # Use expanded package to include dataQF field
+  #release = "LATEST",
+  token = Sys.getenv('NEON_PAT')), # Using NEON_PAT token
+  silent = T)
+
+```
+``` {r evaluate data availability}
+# Turn all tables in the list to dataframe (DF) in the global environment, where name of table = name of DF. 
+# If the data list has no data, then stop and don't run the script
+
+if(is.null(attr(spectra, "class"))){
+  invisible(list2env(spectra, envir=.GlobalEnv))
+  #print("FSP data loaded successfully")
+}else{
   print("There are no FSP data in this date range to check, no script outputs generated.")
   knitr::knit_exit()
-}else{
-  # Turn all tables in the list to dataframe (DF) in the global environment, where name of table = name of DF. 
-  invisible(list2env(spectra, envir=.GlobalEnv))
 }
 
-# Check if CFC data is available
-if(identical(names(canopyFoliage), "NONE")){
-  print("There are no CFC data in this date range for cross-reference checks.")
-  cfc_available <- FALSE
-}else{
+if(is.null(attr(canopyFoliage, "class"))){
   invisible(list2env(canopyFoliage, envir=.GlobalEnv))
-  cfc_available <- TRUE
+  #print("CFC data loaded successfully")
+}else{
+  print("There are no CFC data in this date range to check, cross-reference completeness checks will be skipped.")
 }
+```
 
-# Add required metadata columns to FSP tables
+```{r display_title, echo=FALSE, results='asis'}
+# Display the title with the date
+titleDate <- paste("Test Run -", format(Sys.Date(), "%Y"))
+cat("# FSP Data Quality Review,", titleDate, "\n\n")
+```# Add required metadata columns to FSP tables
 fsp_boutMetadata_pub$dpID <- "DP1.30012.001"
 fsp_boutMetadata_pub$dpName <- "Field spectral"
 fsp_boutMetadata_pub$tableName <- "fsp_boutMetadata_pub"
@@ -194,6 +200,19 @@ variables_30012 <- NULL # Placeholder - would need actual variables file
 # This would come from entryValidationRulesParser table
 validation_rules <- NULL # Placeholder for checks 4-6
 ```
+```{r}
+# Set cfc_available flag for later checks
+cfc_available <- exists("cfc_fieldData")
+
+# Add required metadata columns to FSP tables if they loaded
+if(exists("fsp_boutMetadata_pub")){
+  fsp_boutMetadata_pub$dpID <- "DP1.30012.001"
+  fsp_boutMetadata_pub$dpName <- "Field spectral"
+  fsp_boutMetadata_pub$tableName <- "fsp_boutMetadata_pub"
+  # Continue with the rest of the metadata additions from v3...
+}
+```
+
 
 ## Check for Duplicates
 
@@ -304,7 +323,7 @@ This check verifies that eventIDs match boutIDs in the expected sample list.
 
 ```{r bout completeness}
 # Load complete bout lookup table
-fsp_complete_bout_lut <- read.csv("/home/nerds/Murph/fsp/fsp_complete_bout.csv", stringsAsFactors = FALSE)
+fsp_complete_bout_lut <- read.csv("C:/Users\kmurphy\Documents\Git\os-data-quality-review\fsp\fsp_complete_bout.csv", stringsAsFactors = FALSE)
 
 # Check 1: Match eventID to boutID in lookup table
 # The lookup table has boutID that should match eventID in the data
@@ -542,7 +561,7 @@ if("downloadFileUrl" %in% names(fsp_spectralData_pub) && any(!is.na(fsp_spectral
   # Process each CSV file
   band_count_results <- data.frame()
   
-  for(i in 1:min(nrow(download_urls), 10)){ # Limit to first 10 for testing
+  for(i in 1:min(nrow(download_urls))){ 
     tryCatch({
       # Download CSV
       temp_file <- tempfile(fileext = ".csv")
@@ -744,7 +763,7 @@ reflectance_check_results <- data.frame()
 
 if(exists("band_count_results") && nrow(band_count_results) > 0){
   # Reuse downloaded files from band count check
-  for(i in 1:min(nrow(download_urls), 5)){ # Limit for testing
+  for(i in 1:min(nrow(download_urls))){ # Limit for testing
     tryCatch({
       temp_file <- tempfile(fileext = ".csv")
       download.file(download_urls$downloadFileUrl[i], temp_file, quiet = TRUE)
@@ -792,7 +811,7 @@ This check verifies wavelength values in downloaded CSV files.
 wavelength_check_results <- data.frame()
 
 if(exists("download_urls") && nrow(download_urls) > 0){
-  for(i in 1:min(nrow(download_urls), 5)){ # Limit for testing
+  for(i in 1:min(nrow(download_urls))){ # Limit for testing
     tryCatch({
       temp_file <- tempfile(fileext = ".csv")
       download.file(download_urls$downloadFileUrl[i], temp_file, quiet = TRUE)
@@ -840,7 +859,7 @@ This check verifies spectral ratios using wavelength ranges.
 spectral_ratio_results <- data.frame()
 
 if(exists("download_urls") && nrow(download_urls) > 0){
-  for(i in 1:min(nrow(download_urls), 5)){ # Limit for testing
+  for(i in 1:min(nrow(download_urls))){ # Limit for testing
     tryCatch({
       temp_file <- tempfile(fileext = ".csv")
       download.file(download_urls$downloadFileUrl[i], temp_file, quiet = TRUE)
@@ -1066,7 +1085,7 @@ print(glue::glue(
   "To retrieve the flags, use:
   get_flags_gcs(
     flag.name = <flag_name>,
-    report.timestamp = '{report_timestamp}')")
+    report.timestamp = '{report_timestamp}')"))
 
 ```
 
