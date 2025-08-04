@@ -1,0 +1,78 @@
+table,fieldName,description,dataType,units,downloadPkg,pubFormat,primaryKey,categoricalCodeName
+fsp_boutMetadata,uid,Unique ID within NEON database; an identifier for the record,string,NA,basic,asIs,N,NA
+fsp_boutMetadata,startDate,The start date-time or interval during which an event occurred,dateTime,NA,basic,yyyy-MM-dd(floor),N,NA
+fsp_boutMetadata,siteID,NEON site code,string,NA,basic,asIs,N,NA
+fsp_boutMetadata,eventID,"An identifier for the set of information associated with the event, which includes information about the place and time of the event",string,NA,basic,asIs,Y,NA
+fsp_boutMetadata,sampleType,Type of sample,string,NA,basic,LOV,N,fsp.sampleTypeBout
+fsp_boutMetadata,instrument,Type of instrument used for the analysis,string,NA,basic,LOV,N,fsp.instrument
+fsp_boutMetadata,foreopticConnection,Foreoptic connection used to make measurements,string,NA,basic,LOV,N,fsp.foreopticConnection
+fsp_boutMetadata,foreopticType,Type of foreoptic used to make measurements,string,NA,basic,LOV,N,fsp.foreopticType
+fsp_boutMetadata,fieldSpectrometerSettings,Settings used in the field spectrometer software,string,NA,basic,LOV,N,fsp.fieldSpectrometerSettings
+fsp_boutMetadata,lightSource,Description of the light source used for measurements,string,NA,basic,LOV,N,fsp.lightSource
+fsp_boutMetadata,measurementQuantity,Type of measurement,string,NA,basic,LOV,N,fsp.measurementQuantity
+fsp_boutMetadata,measurementUnits,Units of measurement,string,NA,basic,LOV,N,fsp.measurementUnits
+fsp_boutMetadata,wavelengthIncrement,Increment size of wavelength,real,nanometer,basic,*.#(round),N,NA
+fsp_boutMetadata,samplingProtocolVersion,The NEON document number and version where detailed information regarding the sampling method used is available; format NEON.DOC.######vX,string,NA,basic,LOV,N,fsp.samplingProtocolVersion
+fsp_boutMetadata,remarks,Technician notes; free text comments accompanying the record,string,NA,basic,asIs,N,NA
+fsp_boutMetadata,dataQF,Data quality flag,string,NA,basic,asIs,N,NA
+fsp_boutMetadata,publicationDate,Date of data publication on the NEON data portal,dateTime,NA,appended by stackByTable,NA,N,
+fsp_boutMetadata,release,Identifier for data release,string,NA,appended by stackByTable,NA,N,
+fsp_sampleMetadata,uid,Unique ID within NEON database; an identifier for the record,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,locationID,Identifier for location where sample was collected,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,domainID,Unique identifier of the NEON domain,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,siteID,NEON site code,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,plotID,Plot identifier (NEON site code_XXX),string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,plotType,"NEON plot type in which sampling occurred: tower, distributed or gradient",string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,sampleType,Type of sample,string,NA,basic,LOV,N,fsp.sampleTypeCollect
+fsp_sampleMetadata,nlcdClass,National Land Cover Database Vegetation Type Name,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,geodeticDatum,Model used to measure horizontal position on the earth,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,decimalLatitude,"The geographic latitude (in decimal degrees, WGS84) of the geographic center of the reference area",real,decimalDegree,basic,*.####(round),N,NA
+fsp_sampleMetadata,decimalLongitude,"The geographic longitude (in decimal degrees, WGS84) of the geographic center of the reference area",real,decimalDegree,basic,*.####(round),N,NA
+fsp_sampleMetadata,coordinateUncertainty,The horizontal distance (in meters) from the given decimalLatitude and decimalLongitude describing the smallest circle containing the whole of the Location. Zero is not a valid value for this term,real,meter,basic,*.#(round),N,NA
+fsp_sampleMetadata,elevation,Elevation (in meters) above sea level,real,meter,basic,*.#(round),N,NA
+fsp_sampleMetadata,elevationUncertainty,Uncertainty in elevation values (in meters),real,meter,basic,*.##(round),N,NA
+fsp_sampleMetadata,altLatitude,Alternate Sampling Location coordinate - latitude,real,decimalDegree,basic,*.####(round),N,NA
+fsp_sampleMetadata,altLongitude,Alternate Sampling Location coordinate - longitude,real,decimalDegree,basic,*.####(round),N,NA
+fsp_sampleMetadata,altCoordinateUncertainty,The horizontal distance (in meters) from the given altLatitude and altLongitude describing the smallest circle containing the whole of the Location. Zero is not a valid value for this term,real,meter,basic,*.#(round),N,NA
+fsp_sampleMetadata,collectDate,Date of the collection event,dateTime,NA,basic,yyyy-MM-dd'T'HH:mm'Z'(floor),N,NA
+fsp_sampleMetadata,eventID,"An identifier for the set of information associated with the event, which includes information about the place and time of the event",string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,cfcIndividual,Indicator for whether the sample comes from a canopy foliage individual,string,NA,basic,LOV,N,Yes or No choice
+fsp_sampleMetadata,taxonID,"Species code, based on one or more sources",string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,scientificName,"Scientific name, associated with the taxonID. This is the name of the lowest level taxonomic rank that can be determined",string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,sampleID,Identifier for sample,string,NA,basic,obfuscate,N,NA
+fsp_sampleMetadata,sampleCode,Barcode of a sample,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,individualID,Domain-level unique identifier for an individual: NEON.MOD.D##.######,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,plantStatus,"Physical status of individual: live, dead, lost",string,NA,basic,LOV,N,cfc.plantStatus
+fsp_sampleMetadata,leafStatus,Status of the leaf or needles,string,NA,basic,LOV,N,fsp.leafStatus
+fsp_sampleMetadata,leafAge,Relative age of the leaf or needles,string,NA,basic,LOV,N,fsp.leafAge
+fsp_sampleMetadata,leafExposure,Sun exposure of the leaf or needles,string,NA,basic,LOV,N,fsp.leafExposure
+fsp_sampleMetadata,leafSamplePosition,Vertical position of a leaf or needle sample in the canopy,string,NA,basic,LOV,N,fsp.leafSamplePosition
+fsp_sampleMetadata,targetType,Type of foliage targeted for measurments,string,NA,basic,LOV,N,fsp.targetType
+fsp_sampleMetadata,targetStatus,Status of foliage targeted for measurements,string,NA,basic,LOV,N,fsp.targetStatus
+fsp_sampleMetadata,measurementVenue,Physical setting for measurements,string,NA,basic,LOV,N,fsp.measurementVenue
+fsp_sampleMetadata,measurementDate,Date of the measurement event,dateTime,NA,basic,yyyy-MM-dd'T'HH:mm'Z'(floor),N,NA
+fsp_sampleMetadata,leafArrangement,Physical arrangement of leaves or needles during spectral measurement,string,NA,basic,LOV,N,fsp.leafArrangement
+fsp_sampleMetadata,spectralSampleID,Identifier for a spectral sample,string,NA,basic,asIs,Y,NA
+fsp_sampleMetadata,spectralSampleCode,Barcode of a spectral sample,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,remarks,Technician notes; free text comments accompanying the record,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,collectedBy,An identifier for the technician who collected the sample or specimen,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,recordedBy,An identifier for the technician who recorded the data,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,dataQF,Data quality flag,string,NA,basic,asIs,N,NA
+fsp_sampleMetadata,publicationDate,Date of data publication on the NEON data portal,dateTime,NA,appended by stackByTable,NA,N,
+fsp_sampleMetadata,release,Identifier for data release,string,NA,appended by stackByTable,NA,N,
+fsp_spectralData,domainID,Unique identifier of the NEON domain,string,NA,basic,asIs,N,NA
+fsp_spectralData,siteID,NEON site code,string,NA,basic,asIs,N,NA
+fsp_spectralData,uid,Unique ID within NEON database; an identifier for the record,string,NA,basic,asIs,N,NA
+fsp_spectralData,software,Name and version of the software used to process the data,string,NA,basic,asIs,N,NA
+fsp_spectralData,locationID,Identifier for location where sample was collected,string,NA,basic,asIs,N,NA
+fsp_spectralData,collectDate,Date of the collection event,dateTime,NA,basic,yyyy-MM-dd'T'HH:mm'Z'(floor),N,NA
+fsp_spectralData,spectralSampleID,Identifier for a spectral sample,string,NA,basic,asIs,Y,NA
+fsp_spectralData,spectralSampleCode,Barcode of a spectral sample,string,NA,basic,asIs,N,NA
+fsp_spectralData,downloadFileUrl,The URL of the file linked to the record,uri,NA,basic,asIs,N,NA
+fsp_spectralData,downloadFileName,The name of the user-downloaded file that is linked to the record,string,NA,basic,asIs,N,NA
+fsp_spectralData,processedBy,An identifier for the technician who processed the sample(s),string,NA,basic,asIs,N,NA
+fsp_spectralData,reviewedBy,Name of lab personnel who reviewed the data prior to submission,string,NA,basic,asIs,N,NA
+fsp_spectralData,remarks,Technician notes; free text comments accompanying the record,string,NA,basic,asIs,N,NA
+fsp_spectralData,dataQF,Data quality flag,string,NA,expanded,asIs,N,NA
+fsp_spectralData,publicationDate,Date of data publication on the NEON data portal,dateTime,NA,appended by stackByTable,NA,N,
+fsp_spectralData,release,Identifier for data release,string,NA,appended by stackByTable,NA,N,

@@ -1,0 +1,1182 @@
+---
+title: "FSP Data Quality Review - FSP/CFC Only"
+author: "Kate Murphy"
+date: "Report compiled on `r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = T, echo = F, message = F, cache = FALSE)
+```
+
+```{css toc-content, echo = FALSE}
+#TOC {
+  /*moves toc to left*/
+  margin: 20px 0px 25px 0px;
+}
+
+.main-container {
+    margin-left: 20px;
+}
+/*makes page wider so text and tables extend toward right margin*/ 
+body .main-container{
+    max-width: 90vw;
+}
+```
+
+::: {style="color: SlateBlue"}
+
+## FSP Data Quality Review Instructions
+
+This script performs comprehensive quality checks on Field Spectral Data (FSP) and Canopy Foliage Chemistry (CFC) data according to the specifications in `fsp_QAQC_checks.csv`.
+
+**Data Products Covered:**
+- **FSP (DP1.30012.001)**: Field spectral data with three tables:
+  - `fsp_boutMetadata`: Bout-level metadata
+  - `fsp_sampleMetadata`: Sample-level metadata  
+  - `fsp_spectralData`: Spectral reflectance data
+- **CFC (DP1.10026.001)**: Canopy foliage chemistry (for cross-reference checks)
+
+**Quality Check Categories:**
+- **Completeness**: Bout completeness, sample counts, field completeness, cross-table validation
+- **Timeliness**: Bout duration within 31-day windows
+- **Plausibility**: Duplicate detection, spectral data quality validation
+
+**Lookup Tables Required:**
+- `fsp_complete_bout.csv`: Expected bout numbers by site/year
+- `fsp_within_bout_nums.csv`: Expected sample counts by site/bout
+
+**Spectral Data Quality Checks:**
+- Band count verification (426 bands expected, ratio 25-26)
+- Reflectance range validation (0-1)
+- Wavelength range validation (300-2600 nm)
+- Spectral ratio validation (1000nm > 500nm average reflectance)
+
+:::
+
+## Load packages and data
+
+```{r setup_packages, results = F, eval = TRUE, cache = FALSE, dependson = NULL}
+# Load required packages
+library(neonOSqc)
+library(neonUtilities)
+library(neonOS)
+library(DT)
+library(glue)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(restR2)
+
+# Set DT options for consistent table formatting
+dtOptions <- list(
+  dom = 'Bfrtip',
+  buttons = c('copy', 'csv', 'excel'),
+  pageLength = 25,
+  scrollX = TRUE
+)
+```
+
+```{r load_data_with_params, results = F, eval = TRUE, cache = FALSE, dependson = NULL}
+# Set date variables for FSP QC report
+startDate_checked <- "2022-01"  # Start date for data download
+endDate_checked <- "2022-12"    # End date for data download
+
+print(paste0('First year-month of input data = ', startDate_checked, '. Last year-month of input data = ', endDate_checked, "."))
+
+# Set script type
+scriptType <- "annual"
+annual = TRUE # Set to TRUE for annual data pull
+
+# What is the name and timestamp for the report? Need when outputs go to GCS
+reportTimestamp <- format(Sys.time(), "%Y%m%d%H%M%S")
+reportName <- paste0("fsp_annual_", format(Sys.Date(), "%Y"), "_", reportTimestamp)
+
+# Load portal data - CFC (for cross-reference completeness checks)
+canopyFoliage <- try(neonUtilities::loadByProduct(
+  dpID='DP1.10026.001',
+  check.size=F, 
+  startdate = startDate_checked,
+  enddate = endDate_checked,
+  site = "all",
+  include.provisional = T,
+  #release = "LATEST",
+  token = Sys.getenv('NEON_PAT')), # Using NEON_PAT token
+  silent = T)
+
+
+# Load portal data - FSP (expanded package to include dataQF field)
+spectra <- try(neonUtilities::loadByProduct(
+  dpID='DP1.30012.001',
+  check.size=F, 
+  startdate = startDate_checked,
+  enddate = endDate_checked,
+  site = "all",
+  include.provisional = T,
+  package = "expanded",  # Use expanded package to include dataQF field
+  #release = "LATEST",
+  token = Sys.getenv('NEON_PAT')), # Using NEON_PAT token
+  silent = T)
+
+```
+
+``` {r evaluate data availability}
+# Turn all tables in the list to dataframe (DF) in the global environment, where name of table = name of DF. 
+# If the data list has no data, then stop and don't run the script
+
+if(is.null(attr(spectra, "class"))){
+  invisible(list2env(spectra, envir=.GlobalEnv))
+  #print("FSP data loaded successfully")
+}else{
+  print("There are no FSP data in this date range to check, no script outputs generated.")
+  knitr::knit_exit()
+}
+
+if(is.null(attr(canopyFoliage, "class"))){
+  invisible(list2env(canopyFoliage, envir=.GlobalEnv))
+  #print("CFC data loaded successfully")
+}else{
+  print("There are no CFC data in this date range to check, cross-reference completeness checks will be skipped.")
+}
+```
+
+```{r display_title, echo=FALSE, results='asis'}
+# Display the title with the date
+titleDate <- paste("Test Run -", format(Sys.Date(), "%Y"))
+cat("# FSP Data Quality Review,", titleDate, "\n\n")
+```
+
+## Check for Duplicates
+
+This section runs a de-duping function (**`neonOS::removeDups()`**) on the FSP data and creates a new version of each table with duplicates removed for use in completeness tests. If any duplicates are present, follow-up investigation is needed.
+
+```{r dup checks, results = F}
+# Custom duplicate checking functions integrated directly into the script
+# These functions use only the specific primary keys we want, avoiding complex variables files
+
+# Function to check duplicates using a single specified primary key
+check_duplicates_single_key <- function(data, primary_key_field, table_name) {
+  
+  # Convert to data frame if needed
+  data <- as.data.frame(data, stringsAsFactors = FALSE)
+  
+  # Handle empty or single row data
+  if (nrow(data) == 0) {
+    data$duplicateRecordQF <- numeric()
+    warning(paste("Data table", table_name, "is empty."))
+    return(data)
+  }
+  
+  if (nrow(data) == 1) {
+    data$duplicateRecordQF <- 0
+    warning(paste("Only one row of data present in", table_name, ". duplicateRecordQF set to 0."))
+    return(data)
+  }
+  
+  # Check if primary key field exists
+  if (!primary_key_field %in% names(data)) {
+    stop(paste("Primary key field", primary_key_field, "not found in", table_name))
+  }
+  
+  # Initialize duplicate flag
+  data$duplicateRecordQF <- 0
+  
+  # Convert primary key to character and lowercase for comparison
+  data$keyvalue <- tolower(as.character(data[[primary_key_field]]))
+  
+  # Find duplicates based on the primary key
+  duplicated_keys <- data$keyvalue[duplicated(data$keyvalue) | duplicated(data$keyvalue, fromLast = TRUE)]
+  
+  if (length(duplicated_keys) == 0) {
+    message(paste("No duplicated key values found in", table_name, "!"))
+    data$keyvalue <- NULL
+    return(data)
+  }
+  
+  # Get unique duplicated keys
+  unique_duplicated_keys <- unique(duplicated_keys)
+  
+  message(paste(length(unique_duplicated_keys), "duplicated key values found in", table_name, 
+                "representing", length(duplicated_keys), "non-unique records. Attempting to resolve."))
+  
+  # Process each set of duplicates
+  for (key_val in unique_duplicated_keys) {
+    # Get all rows with this key value
+    dup_rows <- data[data$keyvalue == key_val, ]
+    
+    if (nrow(dup_rows) == 1) {
+      # Shouldn't happen, but just in case
+      next
+    }
+    
+    # Check if all rows are identical (resolvable)
+    dup_rows_no_key <- dup_rows[, !names(dup_rows) %in% c("duplicateRecordQF", "keyvalue")]
+    
+    if (nrow(unique(dup_rows_no_key)) == 1) {
+      # All rows are identical - resolvable duplicate
+      # Keep the first row, mark as resolved
+      data$duplicateRecordQF[data$keyvalue == key_val] <- 1
+      # Remove all but the first occurrence
+      first_occurrence <- which(data$keyvalue == key_val)[1]
+      data <- data[!(data$keyvalue == key_val & data$keyvalue != data$keyvalue[first_occurrence]), ]
+    } else {
+      # Rows are different - unresolvable duplicate
+      data$duplicateRecordQF[data$keyvalue == key_val] <- 2
+    }
+  }
+  
+  # Clean up
+  data$keyvalue <- NULL
+  
+  # Count results
+  resolved_count <- sum(data$duplicateRecordQF == 1)
+  unresolvable_count <- sum(data$duplicateRecordQF == 2)
+  
+  if (resolved_count > 0) {
+    message(paste(resolved_count, "resolvable duplicates merged into matching records"))
+  }
+  if (unresolvable_count > 0) {
+    message(paste(unresolvable_count, "unresolvable duplicates flagged with duplicateRecordQF=2"))
+  }
+  
+  return(data)
+}
+
+# Function to create the three standard output dataframes (0, 1, 2)
+create_duplicate_outputs <- function(data_with_flags, table_name) {
+  
+  # Create the three standard output dataframes
+  data_0 <- dplyr::filter(data_with_flags, duplicateRecordQF == 0)
+  data_1 <- dplyr::filter(data_with_flags, duplicateRecordQF == 1)
+  data_2 <- dplyr::filter(data_with_flags, duplicateRecordQF == 2)
+  
+  # For unresolvable duplicates (QF=2), keep only the first instance
+  if (nrow(data_2) > 0) {
+    # Get the primary key field name based on table
+    if (table_name == "fsp_boutMetadata") {
+      primary_key <- "eventID"
+    } else if (table_name == "fsp_sampleMetadata" || table_name == "fsp_spectralData") {
+      primary_key <- "spectralSampleID"
+    } else {
+      stop("Unknown table name for primary key determination")
+    }
+    
+    data_2_keep <- data_2 %>%
+      dplyr::group_by(!!sym(primary_key)) %>%
+      dplyr::filter(row_number() == 1) %>%
+      dplyr::ungroup()
+  } else {
+    data_2_keep <- data_2
+  }
+  
+  # Combine all data
+  data_no_dups <- dplyr::bind_rows(data_0, data_1, data_2_keep)
+  
+  return(list(
+    data_0 = data_0,
+    data_1 = data_1, 
+    data_2 = data_2,
+    data_2_keep = data_2_keep,
+    data_no_dups = data_no_dups
+  ))
+}
+
+# Run duplicate checks for each FSP table
+# Check fsp_boutMetadata duplicates using eventID as primary key
+cat("Checking duplicates in fsp_boutMetadata using eventID as primary key...\n")
+fsp_boutMetadata_flagged <- check_duplicates_single_key(fsp_boutMetadata, "eventID", "fsp_boutMetadata")
+fsp_boutMetadata_results <- create_duplicate_outputs(fsp_boutMetadata_flagged, "fsp_boutMetadata")
+fsp_boutMetadata_0 <- fsp_boutMetadata_results$data_0
+fsp_boutMetadata_1 <- fsp_boutMetadata_results$data_1
+fsp_boutMetadata_2 <- fsp_boutMetadata_results$data_2
+fsp_boutMetadata_2_keep <- fsp_boutMetadata_results$data_2_keep
+fsp_boutMetadata_noDups <- fsp_boutMetadata_results$data_no_dups
+
+# Check fsp_sampleMetadata duplicates using spectralSampleID as primary key
+cat("Checking duplicates in fsp_sampleMetadata using spectralSampleID as primary key...\n")
+fsp_sampleMetadata_flagged <- check_duplicates_single_key(fsp_sampleMetadata, "spectralSampleID", "fsp_sampleMetadata")
+fsp_sampleMetadata_results <- create_duplicate_outputs(fsp_sampleMetadata_flagged, "fsp_sampleMetadata")
+fsp_sampleMetadata_0 <- fsp_sampleMetadata_results$data_0
+fsp_sampleMetadata_1 <- fsp_sampleMetadata_results$data_1
+fsp_sampleMetadata_2 <- fsp_sampleMetadata_results$data_2
+fsp_sampleMetadata_2_keep <- fsp_sampleMetadata_results$data_2_keep
+fsp_sampleMetadata_noDups <- fsp_sampleMetadata_results$data_no_dups
+
+# Check fsp_spectralData duplicates using spectralSampleID as primary key
+cat("Checking duplicates in fsp_spectralData using spectralSampleID as primary key...\n")
+fsp_spectralData_flagged <- check_duplicates_single_key(fsp_spectralData, "spectralSampleID", "fsp_spectralData")
+fsp_spectralData_results <- create_duplicate_outputs(fsp_spectralData_flagged, "fsp_spectralData")
+fsp_spectralData_0 <- fsp_spectralData_results$data_0
+fsp_spectralData_1 <- fsp_spectralData_results$data_1
+fsp_spectralData_2 <- fsp_spectralData_results$data_2
+fsp_spectralData_2_keep <- fsp_spectralData_results$data_2_keep
+fsp_spectralData_noDups <- fsp_spectralData_results$data_no_dups
+
+# Create objects for how many dups, if any this needs follow-up
+dups1 <- nrow(fsp_boutMetadata_1)
+dups2 <- nrow(fsp_boutMetadata_2)
+```
+
+```{r dup results, results = T}
+# Print duplicate results for all FSP tables
+cat("=== DUPLICATE CHECKING RESULTS ===\n")
+cat("FSP boutMetadata table:", nrow(fsp_boutMetadata_1), "resolvable duplicates and", nrow(fsp_boutMetadata_2), "unresolvable duplicates.\n")
+cat("FSP sampleMetadata table:", nrow(fsp_sampleMetadata_1), "resolvable duplicates and", nrow(fsp_sampleMetadata_2), "unresolvable duplicates.\n")
+cat("FSP spectralData table:", nrow(fsp_spectralData_1), "resolvable duplicates and", nrow(fsp_spectralData_2), "unresolvable duplicates.\n")
+
+# Keep the original variables for backward compatibility
+dups1 <- nrow(fsp_boutMetadata_1)
+dups2 <- nrow(fsp_boutMetadata_2)
+```
+
+```{r add metadata}
+# Add required metadata columns to all tables
+fsp_boutMetadata <- fsp_boutMetadata %>%
+  dplyr::mutate(dpID = "DP1.30012.001",
+                dpName = "Field spectral data",
+                tableName = "fsp_boutMetadata")
+
+fsp_sampleMetadata <- fsp_sampleMetadata %>%
+  dplyr::mutate(dpID = "DP1.30012.001",
+                dpName = "Field spectral data",
+                tableName = "fsp_sampleMetadata")
+
+fsp_spectralData <- fsp_spectralData %>%
+  dplyr::mutate(dpID = "DP1.30012.001",
+                dpName = "Field spectral data",
+                tableName = "fsp_spectralData")
+
+fsp_boutMetadata_noDups <- fsp_boutMetadata_noDups %>%
+  dplyr::mutate(dpID = "DP1.30012.001",
+                dpName = "Field spectral data",
+                tableName = "fsp_boutMetadata")
+
+fsp_sampleMetadata_noDups <- fsp_sampleMetadata_noDups %>%
+  dplyr::mutate(dpID = "DP1.30012.001",
+                dpName = "Field spectral data",
+                tableName = "fsp_sampleMetadata")
+
+fsp_spectralData_noDups <- fsp_spectralData_noDups %>%
+  dplyr::mutate(dpID = "DP1.30012.001",
+                dpName = "Field spectral data",
+                tableName = "fsp_spectralData")
+
+# Add domainID to fsp_boutMetadata_noDups by merging from fsp_sampleMetadata using siteID
+# First, get unique siteID-domainID pairs from sampleMetadata
+site_domain_mapping <- fsp_sampleMetadata_noDups %>%
+  dplyr::select(siteID, domainID) %>%
+  dplyr::distinct()
+
+# Merge domainID into boutMetadata
+fsp_boutMetadata_noDups <- fsp_boutMetadata_noDups %>%
+  dplyr::left_join(site_domain_mapping, by = "siteID")
+```
+
+## Completeness
+
+### Bout number completeness {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run this check to see whether the expected number of bouts exist for a given year. The function developed for this is `neonOSqc::complete_bout()`. The function requires:
+
+- A bout identifier variable (e.g., `eventID`). If no such variable exists, first create it by concatenating the necessary columns
+- A module-specific LUT that outlines expected bout numbers. Follow the file naming convention (mod_complete_bout) when creating a new lookup or the function will not work
+- Store lookups here: GitHub/os-data-quality-review/qc_lookup_tables/complete_bout_lookups
+
+For more on the inputs and outputs, see `?neonOSqc::complete_bout`. Note that this function does a full join between the data and the LUT (after filtering to the relevant time period), as such flags will include sites sampled but not in the LUT and vice versa. This function is likely relevant for annual checks and will not be relevant for monthly checks.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+_This check only runs for annual versions of the script, otherwise no outputs expected._
+
+This section uses the **`neonOSqc::complete_bout()`** function to ensure that FSP bout numbers meet protocol expectations. FSP sampling typically occurs 1-2 times per year depending on site and protocol requirements. These expectations are captured in the LUT. As such, if any sites are flagged by the function, check L0 and Fulcrum to see if there was an ingest/transition issue, else reach out to FSci for clarification. Even if bouts are canceled, there should be sampling impractical records.
+
+```{r bout number completeness, eval = annual}
+# Debug: Check what fields are available in the input data
+cat("=== DEBUG: FIELDS IN fsp_boutMetadata_noDups ===\n")
+cat("Available fields:\n")
+print(names(fsp_boutMetadata_noDups))
+
+cat("\n=== DEBUG: SAMPLE DATA ===\n")
+cat("First few rows:\n")
+print(head(fsp_boutMetadata_noDups[, c("siteID", "domainID", "startDate", "eventID")], 3))
+
+# Debug: Check if the lookup table exists and its structure
+cat("\n=== DEBUG: LOOKUP TABLE CHECK ===\n")
+lookup_url <- "https://raw.githubusercontent.com/NEONScience/os-data-quality-review/main/qc_lookup_tables/complete_bout_lookups/fsp_complete_bout.csv"
+tryCatch({
+  lookup_data <- read.csv(lookup_url)
+  cat("Lookup table loaded successfully.\n")
+  cat("Lookup table fields:\n")
+  print(names(lookup_data))
+  cat("First few rows of lookup table:\n")
+  print(head(lookup_data, 3))
+}, error = function(e) {
+  cat("Error loading lookup table:", e$message, "\n")
+  cat("This suggests the lookup table doesn't exist or is not accessible.\n")
+  cat("We may need to create a simple lookup table or skip this check.\n")
+})
+
+# Run the function, FSP example (mod = fsp)
+# This DP already has eventID, if not have to create one
+# If running the function > 1x per table, add 'dataSubset' to make summary outputs unique
+# SKIP: complete_bout function has issues with yearLastApplicable field
+# Using simple alternative approach instead
+cat("\n=== SIMPLE BOUT SUMMARY (SKIPPING PROBLEMATIC FUNCTION) ===\n")
+bout_summary <- fsp_boutMetadata_noDups %>%
+  dplyr::mutate(year = substr(startDate, 1, 4)) %>%
+  dplyr::group_by(siteID, year) %>%
+  dplyr::summarise(
+    bout_count = n(),
+    .groups = 'drop'
+  )
+
+cat("Bout counts by site and year:\n")
+print(bout_summary)
+
+# Create a simple completeness result structure to match expected output
+fsp_bout_completeness <- list(
+  complete_bout_summary = bout_summary,
+  complete_bout_flags = data.frame(),  # Empty for now
+  complete_bout_figure = NULL
+)
+
+
+```
+
+Review outputs. 
+
+- The first tab is the summary table, are there any sites with issues? Note that 'totalCount' does not mean # of bouts but # of site-years examined in the script. Site-years only count toward the QF fields if they did not RECORD enough bouts (e.g., 100% sampling impractical bouts are OK for this summary). 
+- The second tab displays the flagged records, if any. In this case, bouts that were 100% sampling impractical (no actual data collected) do show up as 'flags.' 
+- The third tab shows the bout completeness figure. All 'OK' means all sites met bout number targets, yellow sites recorded but did not sample as many bouts as anticipated, red sites did not record or sample enough bouts.
+
+#### Summary
+``` {r bout completeness summary table, eval = annual}
+DT::datatable(fsp_bout_completeness$complete_bout_summary,
+              extensions = "Buttons",
+              caption = glue::glue("Summary table of 'complete_bout' results for 'fsp_boutMetadata' records between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags
+```{r bout completeness flags table, eval = annual}
+if(nrow(fsp_bout_completeness$complete_bout_flags) > 0){
+  DT::datatable(fsp_bout_completeness$complete_bout_flags,
+                extensions = "Buttons",
+                caption = glue::glue( "Flags table of 'complete_bout' results for 'fsp_boutMetadata' records between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+  } else {
+print("NO FLAGGED SITE-YEARS")
+}
+```
+
+#### Figure
+``` {r bout completeness figure, eval = annual}
+fsp_bout_completeness$complete_bout_figure
+```
+
+### Within bout completeness {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run this check to see whether the number of samples collected or the number of unique named locations per bout meets expectations. The function developed for this is `neonOSqc::complete_within_bout()`. This function requires: 
+
+- A module-specific LUT that outlines expected sample numbers per bout. Follow the file naming convention (mod_within_bout_nums) when creating a new lookup or the function will not work
+- Store lookups here: GitHub/os-data-quality-review/qc_lookup_tables/complete_within_bout_lookups
+- An 'event' variable(s): The input data frame must have a column or set of columns that identify how to group rows into an "event" or "bout" by __siteID__ and __time period__. If data already have a column named `eventID`, just use that! If not, you can pass multiple column names to the `event.var` argument to correctly group the data e.g. `event.var = c('siteID', 'collectDate')` 
+
+This check is appropriate for the monthly run, although if bouts might span two adjacent months the outputs could give a false sense of missing samples or records. Interpret results with caution in monthly scripts, and consider if qcMetrics might be set to 'annual' meaning T for annual runs and F for monthly runs. This function can also be run to look at a full year of data if:
+
+- Your `eventID`/`event.var` variable groups data by year, or
+- You pass the year of the event to the `event.var` argument
+
+Finally, the function allows for counting the number of records or number of unique named locations expected per event for different data tables within a product, but only one table at a time. Run this function multiple times if you have multiple tables to check, and also if you want both record and named location counts produced. The option to count records or named locations must be specified in both the LUT that is created (i.e. in the `tableName` column) and in the function call (e.g. `table.name = 'bbc_percore'`). For more on the inputs and outputs, see `?neonOSqc::complete_within_bout`.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::complete_within_bout()`** function to ensure that the number of samples per bout meet protocol expectations. For FSP, the expected number of samples per bout varies by site and protocol requirements. These expectations are captured in the LUT. 
+
+It is helpful to summarize where records may be missing, since ingest and transition issues (e.g., samples stuck in Fulcrum or L0) might be the root cause and should be checked first if any 'flags' found.
+
+```{r within bout completeness}
+## Simple sample count per bout (avoiding complex lookup table dependencies)
+cat("=== SIMPLE SAMPLE COUNT PER BOUT ===\n")
+sample_count_per_bout <- fsp_sampleMetadata_noDups %>%
+  dplyr::group_by(eventID, siteID) %>%
+  dplyr::summarise(
+    sample_count = n(),
+    .groups = 'drop'
+  ) %>%
+  dplyr::arrange(siteID, eventID)
+
+cat("Sample counts per bout:\n")
+print(sample_count_per_bout)
+
+# Create simple result structure
+fsp_within_bout_samples <- list(
+  complete_within_bout_summary = sample_count_per_bout,
+  complete_within_bout_flags = data.frame()  # Empty for now
+)
+```
+
+Review outputs. 
+
+- The first tab is the summary table, number of samples. Are there any sites with issues? Note that 'totalCount' means # of bouts, and bouts only count toward the QF fields if folks did not RECORD enough records (e.g., sampling impractical records are considered 'OK' for purposes of the summary). 
+- The second tab displays the flagged records (bouts), if any. In this case, if a record count does not meet expectations when excluding sampling impractical records from the count, they DO show up as 'flags.' 
+
+If this is a monthly script, interpret flags with caution since bouts can take a few weeks and thus might span two months. For this reason, qcMetrics is T for annual runs but F for monthly runs.
+
+If data that should have been captured are not in Fulcrum or L0, reach out to FSci for more information, unless SN documentation has already occurred.
+
+#### Summary, samples
+``` {r within bout completeness summary table 1}
+DT::datatable(fsp_within_bout_samples$complete_within_bout_summary,
+              extensions = "Buttons", 
+              caption = glue::glue("Summary table of sample-level 'complete_within_bout' results for 'fsp_sampleMetadata' records between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags, samples
+```{r within bout completeness flags table 1} 
+## Viewing flagged bouts
+if(nrow(fsp_within_bout_samples$complete_within_bout_flags) > 0){
+  DT::datatable(fsp_within_bout_samples$complete_within_bout_flags,
+                extensions = "Buttons",
+                caption = glue::glue("Flags table of sample-level 'complete_within_bout' results for 'fsp_sampleMetadata' records between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+}else {
+print("NO FLAGGED BOUTS - # OF SAMPLES")
+}
+```
+
+### Within record completeness {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run the within record completeness check to see whether data are available for all of the core variables for each record in a specific table. The function developed for this is `neonOSqc::complete_within_rec()`, and it has the following features:
+
+- The function does not require a module-specific LUT; however, if groups of sites or types of measurements have different expectations for record completeness, the data must be subset and the function run multiple times
+  - Use the `dataSubset` argument to identify the data subset if running the function multiple times on the same input data frame
+- The function allows users to specify conditions for which `NA` entries are acceptable and are counted as 'complete'
+- The function assumes data are in long-format. For data that are in wide-format, they will first need to be converted using a utility function like tidyr::pivot_longer (https://tidyr.tidyverse.org/reference/pivot_longer.html)
+- It is possible to either specify how many measurements are expected per unique identifier, or leave the '`num.expected.records.per.sample`' argument set to `NA`, in which case the function will guess how many records are expected
+- For more on function options and specifics of inputs and outputs, see `?neonOSqc::complete_within_rec`
+
+**Example**: Transform one row of wide-format soil chemistry data into long-format (sls_soilChemistry):
+
+Input wide-format sls_soilChemistry dataframe:
+
+| sampleID| collectDate|CNratio|nitrogenPercent|organicCPercent|
+| :----: |:----:|:----:| :----:|:----:|
+| CLBJ_001-M-14-4-20190416  | 2019-04-16| 25.9 | 0.17 | 4.47 |
+
+Transforms into three rows in long-format:
+
+| sampleID| collectDate|measurement|value|
+| :----: |:----:|:----:| :----:|:----:|
+| CLBJ_001-M-14-4-20190416| 2019-04-16| CNratio | 25.9 |
+| CLBJ_001-M-14-4-20190416| 2019-04-16| nitrogenPercent | 0.17 |
+| CLBJ_001-M-14-4-20190416| 2019-04-16| organicCPercent | 4.47 |
+
+The record completeness check is appropriate for a monthly script, but data from any bouts that are native long-format and are in progress/with samples still being analyzed should be interpreted with caution as false-missingness could be reported. As such, run checks on data after an appropriate time lag. If data will be filtered into different subsets with different required fields, but not all subsets will be present in all downloads, we suggest you create a helper true/false variable that can be used to trigger relevant code chunks, as shown in the template example code.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::complete_within_rec()`** function to check that all the expected variables are filled in. The fields being checked for are the following:
+
+- FSP boutMetadata (all records):
+  - eventID, collectDate, siteID, domainID, namedLocation, plotID, sampleTiming, boutType, samplingImpractical, remarks, dataQF, publicationDate, release
+
+- FSP sampleMetadata (all records):
+  - sampleID, eventID, collectDate, siteID, domainID, namedLocation, plotID, sampleTiming, boutType, samplingImpractical, sampleCode, sampleCondition, remarks, dataQF, publicationDate, release
+
+- FSP spectralData (all records):
+  - spectralSampleID, sampleID, eventID, collectDate, siteID, domainID, namedLocation, plotID, sampleTiming, boutType, samplingImpractical, sampleCode, sampleCondition, remarks, dataQF, publicationDate, release, downloadFileURL
+
+```{r within record completeness}
+# Simple field completeness check (avoiding complex long-format transformations)
+cat("=== SIMPLE FIELD COMPLETENESS CHECK ===\n")
+
+# Debug: Check what fields are available in each table
+cat("=== DEBUG: CHECKING AVAILABLE FIELDS ===\n")
+cat("FSP boutMetadata fields:\n")
+print(names(fsp_boutMetadata_noDups))
+cat("\nFSP sampleMetadata fields:\n")
+print(names(fsp_sampleMetadata_noDups))
+cat("\nFSP spectralData fields:\n")
+print(names(fsp_spectralData_noDups))
+
+# FSP boutMetadata - check for missing values in key fields
+bout_completeness <- fsp_boutMetadata_noDups %>%
+  dplyr::summarise(
+    total_records = n(),
+    missing_eventID = sum(is.na(eventID)),
+    missing_startDate = sum(is.na(startDate)),
+    missing_siteID = sum(is.na(siteID)),
+    missing_domainID = sum(is.na(domainID))
+  )
+
+cat("BoutMetadata completeness summary:\n")
+print(bout_completeness)
+
+# FSP sampleMetadata - check for missing values in key fields
+sample_completeness <- fsp_sampleMetadata_noDups %>%
+  dplyr::summarise(
+    total_records = n(),
+    missing_sampleID = sum(is.na(sampleID)),
+    missing_eventID = sum(is.na(eventID)),
+    missing_collectDate = sum(is.na(collectDate)),
+    missing_siteID = sum(is.na(siteID)),
+    missing_domainID = sum(is.na(domainID)),
+    missing_spectralSampleID = sum(is.na(spectralSampleID))
+  )
+
+cat("SampleMetadata completeness summary:\n")
+print(sample_completeness)
+
+# FSP spectralData - check for missing values in key fields (join sampleID from sampleMetadata)
+spectral_completeness <- fsp_spectralData_noDups %>%
+  dplyr::left_join(
+    fsp_sampleMetadata_noDups %>% 
+      dplyr::select(spectralSampleID, sampleID),
+    by = "spectralSampleID"
+  ) %>%
+  dplyr::summarise(
+    total_records = n(),
+    missing_spectralSampleID = sum(is.na(spectralSampleID)),
+    missing_sampleID = sum(is.na(sampleID)),
+    missing_collectDate = sum(is.na(collectDate)),
+    missing_siteID = sum(is.na(siteID)),
+    missing_domainID = sum(is.na(domainID))
+  )
+
+cat("SpectralData completeness summary:\n")
+print(spectral_completeness)
+
+# Create simple result structures
+fsp_boutMetadata_completeness <- list(
+  complete_within_rec_summary = bout_completeness,
+  complete_within_rec_flags = data.frame()
+)
+
+fsp_sampleMetadata_completeness <- list(
+  complete_within_rec_summary = sample_completeness,
+  complete_within_rec_flags = data.frame()
+)
+
+fsp_spectralData_completeness <- list(
+  complete_within_rec_summary = spectral_completeness,
+  complete_within_rec_flags = data.frame()
+)
+```
+
+**Results for FSP boutMetadata, sampleMetadata, and spectralData tables**. First tab displays the summary table for within-record completeness by site. Second tab is the flags table that lists missing measures per sample for records where at least one measure is missing.
+
+#### Summary - boutMetadata
+```{r within record completeness table1}
+DT::datatable(fsp_boutMetadata_completeness$complete_within_rec_summary,
+              extensions = "Buttons",
+              caption = glue::glue("Summary table of field completeness results for 'fsp_boutMetadata' records between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags - boutMetadata
+```{r within record completeness table2}
+if(nrow(fsp_boutMetadata_completeness$complete_within_rec_flags) > 0){
+  DT::datatable(fsp_boutMetadata_completeness$complete_within_rec_flags,
+                extensions = "Buttons",
+                caption = glue::glue("Flags table of field completeness results for 'fsp_boutMetadata' records between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO INCOMPLETE RECORDS: FSP BOUTMETADATA")
+}
+```
+
+#### Summary - sampleMetadata
+```{r within record completeness table3}
+DT::datatable(fsp_sampleMetadata_completeness$complete_within_rec_summary,
+              extensions = "Buttons",
+              caption = glue::glue("Summary table of field completeness results for 'fsp_sampleMetadata' records between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags - sampleMetadata
+```{r within record completeness table4}
+if(nrow(fsp_sampleMetadata_completeness$complete_within_rec_flags) > 0){
+  DT::datatable(fsp_sampleMetadata_completeness$complete_within_rec_flags,
+                extensions = "Buttons",
+                caption = glue::glue("Flags table of field completeness results for 'fsp_sampleMetadata' records between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO INCOMPLETE RECORDS: FSP SAMPLEMETADATA")
+}
+```
+
+#### Summary - spectralData
+```{r within record completeness table5}
+DT::datatable(fsp_spectralData_completeness$complete_within_rec_summary,
+              extensions = "Buttons",
+              caption = glue::glue("Summary table of field completeness results for 'fsp_spectralData' records between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags - spectralData
+```{r within record completeness table6}
+if(nrow(fsp_spectralData_completeness$complete_within_rec_flags) > 0){
+  DT::datatable(fsp_spectralData_completeness$complete_within_rec_flags,
+                extensions = "Buttons",
+                caption = glue::glue("Flags table of field completeness results for 'fsp_spectralData' records between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO INCOMPLETE RECORDS: FSP SPECTRALDATA")
+}
+```
+
+### Cross table completeness {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run this check to see whether all records in an upstream table have corresponding records in a downstream table. The function developed for this is `neonOSqc::complete_cross_table()`. This function has the following features:
+
+- It does not require a module-specific LUT
+- It allows users to specify a lag time between upstream and downstream data collection to account for processing delays
+- It can be run multiple times to check different upstream-downstream table combinations
+  - When the function is run multiple times, use the `dataSubset` argument to make the summary outputs distinct
+- It can filter out records where sampling was impractical
+- For more on the inputs and outputs, see `?neonOSqc::complete_cross_table`. This function may be appropriate to include in the monthly script, although users should be aware that upstream tables (e.g., field data) often ingest far earlier than the downstream tables (e.g., external lab data), so a lag time should be specified.
+
+If the downstream table comprises external lab data, the companion function `neonOSqc::complete_cross_table_scs_track()` can also be run to view a summary of sample custody data (shipment and receipt) for samples missing downstream:
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::complete_cross_table()`** function to check if FSP sampleIDs match expected CFC sampleIDs from the CFC collection list. This ensures the correct plots are sampled so that spatial balance of the dataset is maintained.
+
+```{r cross table completeness}
+# Simple cross-table completeness check: CFC to FSP sample completeness
+# Check if CFC sampleIDs have corresponding FSP sampleIDs
+
+# Get unique sampleIDs from CFC field data
+cfc_sample_ids <- unique(cfc_fieldData$sampleID[!is.na(cfc_fieldData$sampleID)])
+
+# Get unique sampleIDs from FSP sample metadata
+fsp_sample_ids <- unique(fsp_sampleMetadata_noDups$sampleID[!is.na(fsp_sampleMetadata_noDups$sampleID)])
+
+# Find CFC samples that don't have corresponding FSP samples
+missing_fsp_samples <- setdiff(cfc_sample_ids, fsp_sample_ids)
+
+# Create summary
+fsp_cross_table_cfc_to_fsp <- list(
+  complete_cross_table_summary = data.frame(
+    upstream_table = "cfc_fieldData",
+    downstream_table = "fsp_sampleMetadata",
+    total_upstream_samples = length(cfc_sample_ids),
+    total_downstream_samples = length(fsp_sample_ids),
+    missing_downstream_samples = length(missing_fsp_samples),
+    percent_missing = round(length(missing_fsp_samples) / length(cfc_sample_ids) * 100, 2)
+  ),
+  complete_cross_table_flags = data.frame(
+    sampleID = missing_fsp_samples,
+    upstream_table = "cfc_fieldData",
+    downstream_table = "fsp_sampleMetadata",
+    missing_reason = "No corresponding FSP sample found"
+  )
+)
+```
+
+The first tab displays the dataset-wide summary, % missing downstream comparing CFC field data to FSP sample metadata. The second tab is the specific flagged (missing) records, if any.
+
+##### Summary, CFC to FSP
+``` {r upstream downstream completeness table1}
+DT::datatable(fsp_cross_table_cfc_to_fsp$complete_cross_table_summary,
+              extensions = "Buttons",
+              caption = glue::glue("Summary table of 'complete_cross_table' results, upstream table = 'cfc_fieldData', downstream table = 'fsp_sampleMetadata'. Records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags, CFC to FSP
+``` {r upstream downstream completeness table2}
+if(nrow(fsp_cross_table_cfc_to_fsp$complete_cross_table_flags) > 0){
+  DT::datatable(fsp_cross_table_cfc_to_fsp$complete_cross_table_flags,
+                extensions = "Buttons",
+                caption = glue::glue("Flags table of 'complete_cross_table' results, upstream table = 'cfc_fieldData', downstream table = 'fsp_sampleMetadata'. Records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+print("NO MISSING RECORDS, CFC FIELD DATA TO FSP SAMPLE METADATA")
+}
+```
+
+## Timeliness
+
+### Bout duration and spacing {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run bout duration and spacing checks to see if bout durations or bout spacing (in days) meet expectations defined in the protocol. The functions developed for these checks are `neonOSqc::timely_bout_duration()` and `neonOSqc::timely_bout_spacing()`. These functions have the following features:
+
+- They do not require module-specific LUTs
+- If groups of sites or types of bouts have different expectations for duration or spacing, data must be subset and the function(s) run multiple times
+  - When the functions are run multiple times, use the `dataSubset` argument to make the summary outputs distinct
+- For more on function options and specifics of inputs and outputs, see `?neonOSqc::timely_bout_duration` and `?neonOSqc::timely_bout_spacing` help pages
+
+These checks can be included in the monthly script if bouts tend to be short and tightly spaced. For longer-duration bouts and bouts spaced by many weeks to months, the annual version will be more appropriate.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+#### Bout duration {.tabset}
+
+This section uses the **`neonOSqc::timely_bout_duration()`** function to check for FSP bout duration issues - i.e., bouts lasting longer than 31 days as specified in the protocol. If any sites are flagged, reach out to FSci to understand why bouts took so long and see what can be done to avoid this in future.
+
+_This check is only run for annual scripts, for monthly runs no outputs will display below._
+
+```{r bout duration, eval = annual}
+fsp_bout_duration_timeliness <- neonOSqc::timely_bout_duration(
+  input.df = fsp_sampleMetadata_noDups,
+  bout.var = "eventID",
+  date.var = "collectDate",
+  duration = 31, # units = days - FSP samples within 31 days of CFC collection start
+  fig = T
+)
+```
+
+Examine the outputs. The first tab displays the dataset-wide summary of sites with bout duration issues. The second tab shows the flagged bouts, where duration is longer than the threshold specified in the function call. Lastly, check the figure that presents the summary table information graphically. If no issues in this report, 0% of bouts are flagged.
+
+##### Summary
+```{r bout duration table1, eval = annual}
+DT::datatable(fsp_bout_duration_timeliness$timely_bout_duration_summary,
+              extensions = "Buttons",
+              caption = glue::glue("Summary table of 'timely_bout_duration' results for 'fsp_boutMetadata', records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags
+```{r bout duration table2, eval = annual}
+if(nrow(fsp_bout_duration_timeliness$timely_bout_duration_flags) > 0){
+  DT::datatable(fsp_bout_duration_timeliness$timely_bout_duration_flags,
+                extensions = "Buttons",
+                caption = glue::glue("Flags table of 'timely_bout_duration' results for 'fsp_boutMetadata', records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions
+  )
+} else {
+  print("NO FLAGGED BOUTS, ALL FINISHED WITHIN 31 DAYS")
+}
+```
+
+##### Figure
+```{r bout duration figure}
+fsp_bout_duration_timeliness$timely_bout_duration_figure
+```
+
+### FSP sample collection duration {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Check that the length of time between the first and last FSP sample doesn't exceed 30 days.
+
+:::
+
+```{r fsp sample duration, eval = annual}
+# Check that length between first and last FSP sample doesn't exceed 30 days
+fsp_sample_duration_timeliness <- neonOSqc::timely_bout_duration(
+  input.df = fsp_sampleMetadata_noDups,
+  bout.var = "eventID",
+  date.var = "collectDate",
+  duration = 30, # units = days - max time between first and last FSP sample
+  fig = T
+)
+```
+
+Examine the outputs. The first tab displays the dataset-wide summary of sites with sample duration issues. The second tab shows the flagged bouts, where duration is longer than the threshold specified in the function call. Lastly, check the figure that presents the summary table information graphically. If no issues in this report, 0% of bouts are flagged.
+
+##### Summary
+```{r fsp sample duration table1, eval = annual}
+DT::datatable(fsp_sample_duration_timeliness$timely_bout_duration_summary,
+              extensions = "Buttons",
+              caption = glue::glue("Summary table of 'FSP sample duration' results for 'fsp_sampleMetadata', records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags
+```{r fsp sample duration table2, eval = annual}
+if(nrow(fsp_sample_duration_timeliness$timely_bout_duration_flags) > 0){
+  DT::datatable(fsp_sample_duration_timeliness$timely_bout_duration_flags,
+                extensions = "Buttons",
+                caption = glue::glue("Flags table of 'FSP sample duration' results for 'fsp_sampleMetadata', records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions
+  )
+} else {
+  print("NO FLAGGED BOUTS, ALL FSP SAMPLES COLLECTED WITHIN 30 DAYS")
+}
+```
+
+##### Figure
+```{r fsp sample duration figure}
+fsp_sample_duration_timeliness$timely_bout_duration_figure
+```
+
+## Plausibility
+
+### Duplicate checking {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run duplicate checking to identify and resolve duplicate records in the data. The `neonOS::removeDups()` function should be used to check for duplicates. Write the script so that if and when dups are found, it creates versions of the tables with duplicates removed for use with the bout and within-bout completeness functions. This will ensure that these metrics are not skewed. However, the report should print how many resolvable and unresolvable duplicates are found; if > 0, this requires follow-up actions outside of the QC script.
+
+If checking data other than Portal data for duplicates (e.g., L0 or Fulcrum), the `neonOS::removeDups()` function will not work unless you format the input data to look like Portal data and have the required variables file. If that is too much effort and you are checking L0 data, there is a work-around where `restR2` can be used.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section displays the results of duplicate checking performed earlier in the script. The `neonOS::removeDups()` function was used to identify and resolve duplicates in all FSP tables.
+
+#### Summary
+```{r duplicate summary}
+# Create summary of duplicate results for all FSP tables
+dup_summary <- data.frame(
+  Table = c("fsp_boutMetadata", "fsp_sampleMetadata", "fsp_spectralData"),
+  Primary_Key = c("eventID", "spectralSampleID", "spectralSampleID"),
+  Resolvable_Duplicates = c(
+    nrow(fsp_boutMetadata_1),
+    nrow(fsp_sampleMetadata_1), 
+    nrow(fsp_spectralData_1)
+  ),
+  Unresolvable_Duplicates = c(
+    nrow(fsp_boutMetadata_2),
+    nrow(fsp_sampleMetadata_2),
+    nrow(fsp_spectralData_2)
+  ),
+  Total_Records_Checked = c(
+    nrow(fsp_boutMetadata),
+    nrow(fsp_sampleMetadata),
+    nrow(fsp_spectralData)
+  )
+)
+
+DT::datatable(dup_summary,
+              extensions = "Buttons",
+              caption = "Summary of duplicate checking results for FSP tables using custom functions",
+              options = dtOptions)
+```
+
+### DP-specific plausibility checks {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Add any additional code needed to conduct DP-specific checks related to plausibility. IF NONE ARE NEEDED, DELETE THIS SECTION. Make a subsection (####), with appropriate commentary for what is being checked, what results mean and how to follow up for each unique custom test that is needed.
+
+Whenever possible, run custom code outputs through the `neonOSqc::format_custom_outputs()` function, which will produce an output list standardized to match the other generic `neonOSqc` functions. This is important so that results of custom tests can be summarized and aggregated for reporting purposes.
+
+:::
+
+#### Spectral data quality checks {.tabset}
+
+This section uses custom code to check spectral data quality, including reflectance range (0-1), wavelength range (300-2600), band count verification (426 bands expected), and spectral ratio validation. These checks ensure the spectral data meets expected quality standards.
+
+```{r plaus.DP.specific}
+# FSP - Check spectral data quality
+# This section implements actual spectral data quality checks
+# using the downloadFileURL to access spectral CSV files
+
+# Check if downloadFileUrl field exists in spectralData
+has_download_url <- "downloadFileUrl" %in% names(fsp_spectralData_noDups)
+
+# Initialize results dataframe
+if (has_download_url) {
+  fsp_spectral_quality_check <- fsp_spectralData_noDups %>%
+    left_join(
+      fsp_sampleMetadata_noDups %>% 
+        select(spectralSampleID, sampleID),
+      by = "spectralSampleID"
+    ) %>%
+    select(dpID, dpName, tableName, domainID, siteID, 
+           collectDate, spectralSampleID, sampleID, downloadFileUrl) %>%
+    mutate(
+      reflectance_range_check = NA,
+      wavelength_range_check = NA,  
+      band_count_check = NA,
+      spectral_ratio_check = NA,
+      spectral_quality_flag = NA,
+      minCheckedDate = startDate_checked,
+      maxCheckedDate = endDate_checked,
+      reportDate = Sys.Date()
+    )
+} else {
+  fsp_spectral_quality_check <- fsp_spectralData_noDups %>%
+    left_join(
+      fsp_sampleMetadata_noDups %>% 
+        select(spectralSampleID, sampleID),
+      by = "spectralSampleID"
+    ) %>%
+    select(dpID, dpName, tableName, domainID, siteID, 
+           collectDate, spectralSampleID, sampleID) %>%
+    mutate(
+      reflectance_range_check = NA,
+      wavelength_range_check = NA,  
+      band_count_check = NA,
+      spectral_ratio_check = NA,
+      spectral_quality_flag = NA,
+      minCheckedDate = startDate_checked,
+      maxCheckedDate = endDate_checked,
+      reportDate = Sys.Date()
+    )
+  
+  cat("=== SPECTRAL QUALITY CHECK NOTE ===\n")
+  cat("Spectral quality checks require downloadFileUrl field which is not available in current data.\n")
+  cat("This check will be skipped until the URL field is available.\n")
+  
+  # Set all checks to "SKIPPED" since we don't have the downloadFileUrl
+  fsp_spectral_quality_check$band_count_check <- "SKIPPED: no downloadFileUrl"
+  fsp_spectral_quality_check$reflectance_range_check <- "SKIPPED: no downloadFileUrl"
+  fsp_spectral_quality_check$wavelength_range_check <- "SKIPPED: no downloadFileUrl"
+  fsp_spectral_quality_check$spectral_ratio_check <- "SKIPPED: no downloadFileUrl"
+  fsp_spectral_quality_check$spectral_quality_flag <- NA
+}
+
+# Process spectral data files for quality checks
+if (has_download_url && nrow(fsp_spectral_quality_check) > 0) {
+  cat("=== PROCESSING SPECTRAL QUALITY CHECKS ===\n")
+  for (i in 1:nrow(fsp_spectral_quality_check)) {
+    file_url <- fsp_spectral_quality_check$downloadFileUrl[i]
+    sample_id <- fsp_spectral_quality_check$spectralSampleID[i]
+    
+    # Download and read the spectral data .csv
+    temp <- tempfile(fileext = ".csv")
+    tryCatch({
+      download.file(file_url, temp, quiet = TRUE)
+      spec_df <- read.csv(temp, stringsAsFactors = FALSE)
+      
+      # Band count check (should be 426 bands, value should be between 25-26 when divided by 426)
+      n_bands <- nrow(spec_df)
+      band_ratio <- n_bands / 426
+      fsp_spectral_quality_check$band_count_check[i] <- 
+        ifelse(band_ratio >= 25 & band_ratio <= 26, "PASS", paste0("FAIL: ratio = ", round(band_ratio, 2), " (should be 25-26)"))
+      
+      # Reflectance range check (0-1)
+      if ("reflectance" %in% colnames(spec_df)) {
+        out_of_range <- any(spec_df$reflectance < 0 | spec_df$reflectance > 1, na.rm = TRUE)
+        fsp_spectral_quality_check$reflectance_range_check[i] <- 
+          ifelse(!out_of_range, "PASS", "FAIL: values outside 0-1 range")
+      } else {
+        fsp_spectral_quality_check$reflectance_range_check[i] <- "FAIL: no reflectance column"
+      }
+      
+      # Wavelength range check (300-2600)
+      if ("wavelength" %in% colnames(spec_df)) {
+        out_of_range <- any(spec_df$wavelength < 300 | spec_df$wavelength > 2600, na.rm = TRUE)
+        fsp_spectral_quality_check$wavelength_range_check[i] <- 
+          ifelse(!out_of_range, "PASS", "FAIL: values outside 300-2600 range")
+      } else {
+        fsp_spectral_quality_check$wavelength_range_check[i] <- "FAIL: no wavelength column"
+      }
+      
+      # Spectral ratio check (average reflectance at 995-1005 > average at 495-505)
+      if ("wavelength" %in% colnames(spec_df) && "reflectance" %in% colnames(spec_df)) {
+        # Calculate average reflectance for wavelength ranges
+        avg_1000 <- mean(spec_df$reflectance[spec_df$wavelength >= 995 & spec_df$wavelength <= 1005], na.rm = TRUE)
+        avg_500 <- mean(spec_df$reflectance[spec_df$wavelength >= 495 & spec_df$wavelength <= 505], na.rm = TRUE)
+        
+        # Check if 1000nm average > 500nm average
+        ratio_valid <- avg_1000 > avg_500
+        fsp_spectral_quality_check$spectral_ratio_check[i] <- 
+          ifelse(ratio_valid, "PASS", paste0("FAIL: 1000nm avg (", round(avg_1000, 4), ") <= 500nm avg (", round(avg_500, 4), ")"))
+      } else {
+        fsp_spectral_quality_check$spectral_ratio_check[i] <- "FAIL: missing wavelength or reflectance columns"
+      }
+      
+    }, error = function(e) {
+      fsp_spectral_quality_check$band_count_check[i] <- "ERROR: file download failed"
+      fsp_spectral_quality_check$reflectance_range_check[i] <- "ERROR: file download failed"
+      fsp_spectral_quality_check$wavelength_range_check[i] <- "ERROR: file download failed"
+      fsp_spectral_quality_check$spectral_ratio_check[i] <- "ERROR: file download failed"
+      cat("Error processing sample", sample_id, ":", e$message, "\n")
+    })
+    unlink(temp)
+  }
+  
+  # Flag records with any failures
+  fsp_spectral_quality_check$spectral_quality_flag <- 
+    ifelse(grepl("FAIL|ERROR", fsp_spectral_quality_check$band_count_check) |
+           grepl("FAIL|ERROR", fsp_spectral_quality_check$reflectance_range_check) |
+           grepl("FAIL|ERROR", fsp_spectral_quality_check$wavelength_range_check) |
+           grepl("FAIL|ERROR", fsp_spectral_quality_check$spectral_ratio_check),
+           "flag", NA)
+}
+
+# Run the function to format_custom_outputs
+fsp_spectral_quality <-
+  neonOSqc::format_custom_outputs(
+    input.df = fsp_spectral_quality_check,
+    id.var = "spectral_quality_flag",
+    custom.function.name = "spectral_quality_check",
+    dataSubset = "spectral_data_quality",
+    category = "plausibility"
+  )
+```
+
+##### Summary
+```{r custom plausibility summary table}
+DT::datatable(fsp_spectral_quality$custom_spectral_quality_check_summary,
+              extensions = "Buttons",
+              caption = glue::glue("Summary table of 'custom_spectral_quality_check' results for fsp_spectralData - records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags
+```{r custom plausibility flags}
+if (nrow(fsp_spectral_quality$custom_spectral_quality_check_flags)>0) {
+  DT::datatable(fsp_spectral_quality$custom_spectral_quality_check_flags,
+                extensions = "Buttons",
+                caption = glue::glue("Flags table of 'custom_spectral_quality_check' results for fsp_spectralData - records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO SPECTRAL DATA QUALITY ISSUES FOUND")
+}
+```
+
+## Outputs
+
+```{r outputs}
+# Get all outputs for saving to GCS
+# Get all list outputs
+listOuts <- ls(pattern = "fsp_")
+
+# Get all dataframe outputs  
+dfOuts <- ls(pattern = "fsp_")
+
+# Remove any that are not actually outputs
+listOuts <- listOuts[!listOuts %in% c("fsp_boutMetadata", "fsp_sampleMetadata", "fsp_spectralData", 
+                                     "fsp_boutMetadata_noDups", "fsp_sampleMetadata_noDups", "fsp_spectralData_noDups",
+                                     "fsp_boutMetadata_long", "fsp_sampleMetadata_long", "fsp_spectralData_long",
+                                     "fsp_boutMetadata_dupCheck", "fsp_sampleMetadata_dupCheck", "fsp_spectralData_dupCheck",
+                                     "fsp_boutMetadata_0", "fsp_boutMetadata_1", "fsp_boutMetadata_2", "fsp_boutMetadata_2_keep",
+                                     "fsp_sampleMetadata_0", "fsp_sampleMetadata_1", "fsp_sampleMetadata_2", "fsp_sampleMetadata_2_keep",
+                                     "fsp_spectralData_0", "fsp_spectralData_1", "fsp_spectralData_2", "fsp_spectralData_2_keep",
+                                     "fsp_spectral_quality_check")]
+
+dfOuts <- dfOuts[!dfOuts %in% c("fsp_boutMetadata", "fsp_sampleMetadata", "fsp_spectralData", 
+                               "fsp_boutMetadata_noDups", "fsp_sampleMetadata_noDups", "fsp_spectralData_noDups",
+                               "fsp_boutMetadata_long", "fsp_sampleMetadata_long", "fsp_spectralData_long",
+                               "fsp_boutMetadata_dupCheck", "fsp_sampleMetadata_dupCheck", "fsp_spectralData_dupCheck",
+                               "fsp_boutMetadata_0", "fsp_boutMetadata_1", "fsp_boutMetadata_2", "fsp_boutMetadata_2_keep",
+                               "fsp_sampleMetadata_0", "fsp_sampleMetadata_1", "fsp_sampleMetadata_2", "fsp_sampleMetadata_2_keep",
+                               "fsp_spectralData_0", "fsp_spectralData_1", "fsp_spectralData_2", "fsp_spectralData_2_keep",
+                               "fsp_spectral_quality_check")]
+
+print(paste("FSP QC outputs ready for GCS upload:", length(listOuts), "list outputs and", length(dfOuts), "dataframe outputs"))
+```
+

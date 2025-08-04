@@ -1,0 +1,21 @@
+eventID,mod,scale,siteID,minExpectedRecords,yearFirstApplicable,yearLastApplicable,tableName
+fsp.HARV.2024_Leaf,fsp,bands per sample,HARV,426,2024,2024,fsp_spectralData
+fsp.SERC.2016_Leaf,fsp,bands per sample,SERC,426,2016,2016,fsp_spectralData
+fsp.DSNY.2014_Leaf,fsp,bands per sample,DSNY,426,2014,2014,fsp_spectralData
+fsp.OSBS.2014_Leaf,fsp,bands per sample,OSBS,426,2014,2014,fsp_spectralData
+fsp.GUAN.2022_Leaf,fsp,bands per sample,GUAN,426,2022,2022,fsp_spectralData
+fsp.STEI.2016_Leaf,fsp,bands per sample,STEI,426,2016,2016,fsp_spectralData
+fsp.TREE.2016_Leaf,fsp,bands per sample,TREE,426,2016,2016,fsp_spectralData
+fsp.UNDE.2016_Leaf,fsp,bands per sample,UNDE,426,2016,2016,fsp_spectralData
+fsp.GRSM.2015_Leaf,fsp,bands per sample,GRSM,426,2015,2015,fsp_spectralData
+fsp.ORNL.2015_Leaf,fsp,bands per sample,ORNL,426,2015,2015,fsp_spectralData
+fsp.CPER.2013_Leaf,fsp,bands per sample,CPER,426,2013,2013,fsp_spectralData
+fsp.RMNP.2020_Leaf,fsp,bands per sample,RMNP,426,2020,2020,fsp_spectralData
+fsp.STER.2022_Leaf,fsp,bands per sample,STER,426,2022,2022,fsp_spectralData
+fsp.YELL.2023_Leaf,fsp,bands per sample,YELL,426,2023,2023,fsp_spectralData
+fsp.NIWO.2024_Leaf,fsp,bands per sample,NIWO,426,2024,2024,fsp_spectralData
+fsp.WREF.2019_Leaf,fsp,bands per sample,WREF,426,2019,2019,fsp_spectralData
+fsp.SJER.2013_Leaf,fsp,bands per sample,SJER,426,2013,2013,fsp_spectralData
+fsp.SOAP.2013_Leaf,fsp,bands per sample,SOAP,426,2013,2013,fsp_spectralData
+fsp.HEAL.2021_Leaf,fsp,bands per sample,HEAL,426,2021,2021,fsp_spectralData
+fsp.PUUM.2019_Leaf,fsp,bands per sample,PUUM,426,2019,2019,fsp_spectralData

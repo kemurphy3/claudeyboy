@@ -1,0 +1,2118 @@
+---
+title: "FSP Data Quality Review, `r params$titleDate`"
+author: "Kate Murphy"
+date: "Report compiled on `r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+params:
+  titleDate: 'Default Title'
+  startMonth: ''
+  endMonth: ''
+  monthlyAnnual: ''
+  labData: FALSE
+  customParams: TRUE
+  reportTimestamp: '20250101000000'
+  reportName: 'mod_monthly_YYYYMM_YYYYMMDDHHMMSS'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = T, echo = F, message = F)
+```
+
+```{css toc-content, echo = FALSE}
+#TOC {
+  /*moves toc to left*/
+  margin: 20px 0px 25px 0px;
+}
+
+.main-container {
+    margin-left: 20px;
+}
+/*makes page wider so text and tables extend toward right margin*/ 
+body .main-container{
+    max-width: 90vw;
+}
+```
+
+
+::: {style="color: SlateBlue"}
+
+## Instructions for use
+
+To create a script for your own product:
+
+- Do a save-as of this Template document
+- Delete sections or functions that are not relevant, and update the ones that are relevant so they work with your DP
+- Add DP specific code and tests as needed
+- Instructional text should be deleted (from ::: to ::: in the markdown file) and replaced with DP-specific comments and guidelines for how to interpret test results
+- Text commentary needs to introduce the tests or analyses conducted in a given section, how to interpret outputs (esp important for custom code), and explain what will be done if 'flagged' records are found
+- Whenever possible, the functions developed as part of the neonOSqc package should be used to conduct data quality review. These functions are listed here:
+  - GitHub/os-data-quality-review/0-instuctions-resources/Function brief descriptions.csv
+
+When using `neonOSqc` functions, consider the following:
+
+- The type of check (completeness, timeliness, plausibility) is the first part of the function name, followed by more detail on what is checked (complete_bout, timely_process, etc)
+- Function names are words separated by periods; this is also true for function input parameters and outputs
+- Function outputs are generally delivered as lists, with tables that present all data, flagged records, and summary results. Some of the functions also have figures or additional tables as part of the output lists
+- Many of the functions require protocol-specific lookup tables (LUTs) to run. These functions have a parameter called 'mod' where the user needs to specify a module name that uniquely identifies the lookup table
+  - In general, we recommend using the 3-letter codes already in use across NEON, but if new 'modules' need to be created, this is no problem: Any simple letter code the author chooses is fine as long as it is used consistently in lookup tables and functions
+  - Module-specific LUTs will need to be created (and maintained) by the data product leads for each relevant function
+  - All lookup tables live in the folder: GitHub/os-data-quality-review/qc_lookup_tables
+- Function help files provide details about input parameters, outputs, and whether a lookup table is required. Use the single question mark before the function name (ex: '?complete_bout') to view the help files in R Studio
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THIS SECTION CAN BE DELETED.
+
+:::
+
+
+## Load packages and data
+
+::: {style="color: SlateBlue"}
+In this section, load the data that will be used to conduct QA. All functions need to be given a data frame or list as input, but the functions themselves do not download data. As a general rule, use portal data - but if there are reasons to use L0, L1 or fulcrum data (for example: long wait intervals, fuzzed taxonomy, etc), that is acceptable. Note what data source is used in this section. While some specific checks may be completed on data from earlier in the pipeline, all data products must do some checking of portal data so that we are checking what a user sees (at minimum, confirm it is all there). 
+
+**General guidelines**: The QC script should download data directly and then load it in R for use in quality checks. For testing or extremely large data chunks, it is possible to download data ahead of time and then read it in prior to conducting QC checks. Input data should be stored on Box in the folder called `osQCOutputs`, in `module` and `date` (startDate_checked_endDate_checked) subfolders. Note that `date` corresponds to the range of input data used in the report. For example:  
+
+- Box/osQCOutputs/cfc/2020-05_2020-11/data
+
+This organizational scheme enables full traceability/reproducibility. If using `neonUtilities::loadByProduct()` or a `restR2` call, the last section of this template includes code that will save the data from R to Box. If loading data manually, ensure it is stored in a folder as described, and use stringsAsFactors = F when reading data into R. 
+
+Loading data manually is considered a workaround and will not be possible when these scripts are run automatically. Please include the direct download code and comment it out for testing if necessary
+
+**Metadata**: All data tables that will undergo QC checks need to have the following metadata columns added to them: 
+
+- dpID (DP1.XXXXX.ZZZ) # (DP1.30012.001)
+- dpName # Field spectral data
+- tableName 
+
+These metadata do not come in the data download, so add them after loading or downloading input tables and running duplicate checks as detailed below. Additionally, if a table does not have domainID add this as well. (All tables should have domainID! Please work with the Data Products team to add it to the pub workbook.) If any of the these columns are not present, the `neonOSqc` functions will not run.
+
+**Environment Variables**: Create a variable in the R envrionment for '`startDate_checked`' and '`endDate_checked`' with the format YYYY-MM (ex: `startDate_checked` = "2021-08", `endDate_checked` = "2021-10"). These are the dates used for data download, not necessarily the earliest or latest dates observed in the data. Even if they are not used in any function calls, you must create these variables or the `neonOSqc` functions will not run. 
+
+**Naming conventions for lists and dataframes**: 
+
+- Objects created as the output of a QC test, either from a function in the `neonOSqc` package or as the result of a custom check, should use mod plus a unique string, but not include 'mod_' - for example:
+  + `<mod>.<check description>` e.g. `alg.biomass.check` OR
+  + `<mod><number>` e.g. `alg12`
+- Dataframes that include the naming convention 'mod_' are assumed to be input data, so please avoid this unless the data are actually the input data used for testing - for example, the following is NOT ideal:
+  + `<mod>_<check description>` e.g. `alg_biomass.check`
+
+These naming conventions are needed to ensure that input data and outputs are saved by this script into the correct Box folders (e.g., the last code chunk of this template). That last code chunk needs to be updated with the name of the mod being analyzed in order for this to work correctly. For example, if working on algal taxonomy data, update the `pattern` argument in the code that gets assigned to `listOuts` and `dfOuts` to 'alg_'. For outputs that are lists, dataframe names are set to listName.dataFrameName before pushing to Box. Since data frame names of `neonOSqc` outputs include function name, the list names do not require this information.
+  
+**Lookups**: Many of the `neonOSqc` functions retrieve mod-specific LUTs using the GitHub API. To make this work, set up a Git Personal Access Token (PAT) and store it in your global environment as a variable called GITHUB_PAT. Step by step instructions for how to do this are here:
+
+- GitHub/os-data-quality-review/0-instuctions-templates/GitHub PAT.pdf
+
+
+**Tabs**: The template uses 'tabset' to organize tables and figures produced by the same QC functions into multi-tab display items. This makes reports more compact and easy to navigate. We expect all reports to use tabs. If this needs discussion for a specific script, please reach out to the QC working group. 
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+
+This script uses portal data, downloaded to R directly using neonUtilities. The R code version used to run this script is as follows:
+
+```{r R version}
+version$version.string
+print(paste("neonOSqc version:", packageVersion("neonOSqc")))
+```
+
+```{r load data, results = F}
+# Clear workspace
+rm(list = ls())
+
+# Load CRAN packages
+library(neonUtilities) # functions to download portal data
+library(neonOS) # function for dup checking, recommend using the CRAN version
+library(devtools)# functions for interacting with packages (if needed)
+library(dplyr)
+library(tidyr)
+# Install packages from GitHub if not done or not updated in a while - else comment out
+# Note that 'install_local' can also work, as long as repo is synced should be same outcome
+# install_github('NEONScience/neonOSqc') 
+# install_github("NEONScience/restR2") 
+
+# Load internal NEON packages
+library(neonOSqc) # OS QC functions
+library(restR2) # if using restR2 calls directly
+
+# Set options for DT:datatables
+dtOptions = list(
+	    paging = FALSE,
+	    scrollX = TRUE,
+	    scrollY = "42vh",
+	    scrollCollapse = TRUE,
+	    columnDefs = list(
+	      list(className = "dt-left", targets = "_all")
+	    )
+	  )
+
+# BoxFolder path
+if(dir.exists("/Users/sweintraub/")){
+  boxDir <- "/Users/sweintraub/Library/CloudStorage/Box-Box"
+}
+
+if(dir.exists("/Users/cscott/")){
+  boxDir <- "/Users/cscott/Box"
+}
+
+if(dir.exists("/Users/kmurphy/")){
+  boxDir <- "/Users/kmurphy/OneDrive - National Ecological Observatory Network"
+}
+
+# Set date variables
+startDate_checked = "2024-01"
+endDate_checked = "2024-12"
+
+# Optional mechanism to auto-set 'annual' parameter, for tests only done on annual data chunks
+annual = ifelse(substr(startDate_checked, 6,7) == "01" & substr(endDate_checked, 6, 7) == "12", T, F)
+
+# Load portal data - CFC
+canopyFoliage <- neonUtilities::loadByProduct(
+  dpID='DP1.10026.001',
+  check.size=F, 
+  startdate = startDate_checked,
+  enddate = endDate_checked,
+  site = "all",
+  include.provisional = T,
+  release = "LATEST",
+  token = Sys.getenv('GITHUB_PAT')) # remove this line if you don't have a token, though everyone is encouraged to get one
+
+# Load portal data - FSP (subset of sites)
+spectra <- neonUtilities::loadByProduct(
+  dpID='DP1.30012.001',
+  check.size=F, 
+  startdate = startDate_checked,
+  enddate = endDate_checked,
+  #site = c("HARV", "TREE", "TOOL", "BLAN", "SJER", "PUUM"), # option to use a subset of sites for testing
+  include.provisional = T,
+  release = "LATEST",
+  token = Sys.getenv('GITHUB_PAT'))
+
+
+
+# Turn all tables in the list to dataframe (DF) in the global environment, where name of table = name of DF. This is helpful because most functions require a DF as input. The list itself is still preserved, for those few functions that actually need lists.
+list2env(canopyFoliage, envir=.GlobalEnv)
+list2env(spectra, envir=.GlobalEnv)
+```
+
+The data being checked in this report are from the four field and internal lab tables in the 'Plant foliar traits' data product (DP1.10026.001):
+
++ cfc_fieldData
++ cfc_LMA 
++ cfc_chemistrySubsampling
++ cfc_shapefile
+
+The data being QC'd are from the following time periods:
+
+```{r R data timeperiod}
+print(paste0('First year-month of input data = ', startDate_checked, '. Last year-month of input data = ', endDate_checked, "."))
+```
+
+
+## Check for Duplicates
+
+::: {style="color: SlateBlue"}
+
+The `neonOS::removeDups()` function should be used to check for duplicates. Write the script so that if and when dups are found, it creates versions of the tables with duplicates removed for use with the bout and within-bout completeness functions. This will ensure that these metrics are not skewed. However, the report should print how many resolvable and unresolvable duplicates are found; if > 0, this requires follow-up actions outside of the QC script.
+
+If checking data other than Portal data for duplicates (e.g., L0 or Fulcrum), the `neonOS::removeDups()` function will not work unless you format the input data to look like Portal data and have the required variables file. If that is too much effort and you are checking L0 data, there is a work-around where `restR2` can be used. See this code chunk and adapt as needed:
+
+- GitHub/os-data-quality-review/0-instructions-templates/code-chunks/dup.check.L0.R
+
+* __NOTE__ The dup checking code chunk uses the argument `results=F` to prevent the progress bar graphic generated by `neonOS::removeDups` from appearing in the Rmd output. Make sure your print statement with the number of resolvable and unresolvable dups is in a separate code chunk with `results=T`
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section runs a de-duping function (**`neonOS::removeDups()`**) on the CFC data and creates a new version of each table with duplicates removed for use in completeness tests. If any duplicates are present, follow-up investigation is needed.
+
+```{r dup checks, results = F}
+## REPEAT THESE STEPS FOR ALL RELEVANT TABLES
+# Run dup check function - CFC
+fsp_boutMetadata_dupCheck <- neonOS::removeDups(data = fsp_boutMetadata,
+                                             variables = eventID,
+                                             table = 'fsp_boutMetadata') 
+
+# Create 3 DFs: no dups, resolvable , unresolvable
+fsp_boutMetadata_0 <- dplyr::filter(fsp_boutMetadata_dupCheck, duplicateRecordQF == "0")
+fsp_boutMetadata_1 <- dplyr::filter(fsp_boutMetadata_dupCheck, duplicateRecordQF == "1")
+fsp_boutMetadata_2 <- dplyr::filter(fsp_boutMetadata_dupCheck, duplicateRecordQF == "2")
+
+# For unresolvable, get rid of duplicates (if any)
+fsp_boutMetadata_2_keep <- fsp_boutMetadata_2 %>%
+  # group by whatever fields are in the primary key
+  dplyr::group_by(eventID) %>% 
+  # only keep the first instance - or, something more sophisticated for your DP as relevant
+  dplyr::filter(row_number()==1)
+
+# Join now-resolved dups back with the other data for use in completeness checks
+fsp_boutMetadata_noDups <- dplyr::bind_rows(fsp_boutMetadata_0, fsp_boutMetadata_1, fsp_boutMetadata_2_keep)
+
+# Print out how many dups, if any this needs follow-up
+dups1 <- nrow(fsp_boutMetadata_1)
+dups2 <- nrow(fsp_boutMetadata_2)
+
+fsp_sampleMetadata_dupCheck <- neonOS::removeDups(data = fsp_sampleMetadata,
+                                             variables = sampleID,
+                                             table = 'fsp_sampleMetadata') 
+
+# Create 3 DFs: no dups, resolvable , unresolvable
+fsp_sampleMetadata_0 <- dplyr::filter(fsp_sampleMetadata_dupCheck, duplicateRecordQF == "0")
+fsp_sampleMetadata_1 <- dplyr::filter(fsp_sampleMetadata_dupCheck, duplicateRecordQF == "1")
+fsp_sampleMetadata_2 <- dplyr::filter(fsp_sampleMetadata_dupCheck, duplicateRecordQF == "2")
+
+# For unresolvable, get rid of duplicates (if any)
+fsp_sampleMetadata_2_keep <- fsp_sampleMetadata_2 %>%
+  # group by whatever fields are in the primary key
+  dplyr::group_by(sampleID) %>% 
+  # only keep the first instance - or, something more sophisticated for your DP as relevant
+  dplyr::filter(row_number()==1)
+
+# Join now-resolved dups back with the other data for use in completeness checks
+fsp_sampleMetadata_noDups <- dplyr::bind_rows(fsp_sampleMetadata_0, fsp_sampleMetadata_1, fsp_sampleMetadata_2_keep)
+
+# Print out how many dups, if any this needs follow-up
+dups1 <- nrow(fsp_sampleMetadata_1)
+dups2 <- nrow(fsp_sampleMetadata_2)
+
+
+fsp_spectralData_dupCheck <- neonOS::removeDups(data = fsp_spectralData,
+                                             variables = spectralSampleID,
+                                             table = 'fsp_spectralData') 
+
+# Create 3 DFs: no dups, resolvable , unresolvable
+fsp_spectralData_0 <- dplyr::filter(fsp_spectralData_dupCheck, duplicateRecordQF == "0")
+fsp_spectralData_1 <- dplyr::filter(fsp_spectralData_dupCheck, duplicateRecordQF == "1")
+fsp_spectralData_2 <- dplyr::filter(fsp_spectralData_dupCheck, duplicateRecordQF == "2")
+
+# For unresolvable, get rid of duplicates (if any)
+fsp_spectralData_2_keep <- fsp_spectralData_2 %>%
+  # group by whatever fields are in the primary key
+  dplyr::group_by(spectralSampleID) %>% 
+  # only keep the first instance - or, something more sophisticated for your DP as relevant
+  dplyr::filter(row_number()==1)
+
+# Join now-resolved dups back with the other data for use in completeness checks
+fsp_spectralData_noDups <- dplyr::bind_rows(fsp_spectralData_0, fsp_spectralData_1, fsp_spectralData_2_keep)
+
+# Print out how many dups, if any this needs follow-up
+dups1 <- nrow(fsp_spectralData_1)
+dups2 <- nrow(fsp_spectralData_2)
+
+
+```
+
+```{r dup check results}
+print(paste0('The field table has ', dups1, ' resolvable duplicates and ', dups2, ' unresolvable duplicates.'))
+```
+
+```{r add metadata}
+# Add metadata cols - repeat for all tables that will feed into a neonOSqc function
+fsp_boutMetadata <- fsp_boutMetadata %>%
+  dplyr::mutate(dpID = "DP1.30012.001", 
+                dpName = "Field spectral data", 
+                tableName = "fsp_boutMetadata")
+
+fsp_boutMetadata_noDups <- fsp_boutMetadata_noDups %>%
+  dplyr::mutate(dpID = "DP1.30012.001", 
+                dpName = "Field spectral data", 
+                tableName = "fsp_boutMetadata")
+
+fsp_sampleMetadata <- fsp_sampleMetadata %>%
+  dplyr::mutate(dpID = "DP1.30012.001", 
+                dpName = "Field spectral data", 
+                tableName = "fsp_sampleMetadata")
+
+fsp_sampleMetadata_noDups <- fsp_sampleMetadata_noDups %>%
+  dplyr::mutate(dpID = "DP1.30012.001", 
+                dpName = "Field spectral data", 
+                tableName = "fsp_sampleMetadata")
+
+fsp_spectralData <- fsp_spectralData %>%
+  dplyr::mutate(dpID = "DP1.30012.001", 
+                dpName = "Field spectral data", 
+                tableName = "fsp_spectralData")
+
+fsp_spectralData_noDups <- fsp_spectralData_noDups %>%
+  dplyr::mutate(dpID = "DP1.30012.001", 
+                dpName = "Field spectral data", 
+                tableName = "fsp_spectralData")
+
+
+```
+
+
+## Completeness
+
+### Bout number completeness {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run this check to see whether the expected number of bouts exist for a given year. The function developed for this is `neonOSqc::complete_bout()`. The function requires:
+
+- A bout identifier variable (e.g., `eventID`). If no such variable exists, first create it by concatenating the necessary columns
+- A module-specific LUT that outlines expected bout numbers. Follow the file naming convention (mod.complete_bout) when creating a new lookup or the function will not work
+- Store lookups here: GitHub/os-data-quality-review/qc_lookup_tables/complete_bout_lookups
+
+For more on the inputs and outputs, see `?neonOSqc::complete_bout`. This function is likely relevant for annual checks and will not be relevant for monthly checks.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+_This check only runs for annual versions of the script, otherwise no outputs expected._
+
+This section uses the **`neonOSqc::complete_bout()`** function to ensure that SLS bout numbers meet protocol expectations. 3 soil bouts per year are expected, except for the following cases:
+
+1. Domain 18/19: short season, only 1 bout per year expected 
+
+2. Domain 04 and 20: T2 window straddles the calendar year, making it possible for 4 bouts one year and 2 the following, or vice versa.
+
+These exceptions are captured in the LUT. As such, if any sites are flagged by the function, check L0 and Fulcrum to see if there was an ingest/transition issue, else reach out to FSci for clarification. Even if bouts are canceled, there should be sampling impractical records.
+
+```{r bout number completeness, eval = annual}
+# Run the function, soil example (mod = sls)
+# This DP already has eventID, if not have to create one
+# If running the function > 1x per table, add 'dataSubset' to make summary outputs unique
+fsp1 <- neonOSqc::complete_bout(
+  input.df = fsp_boutMetadata_noDups,
+  mod = "fsp",
+  date.var = "year",
+  bout.var = "boutID")
+```
+
+Review outputs. 
+
+- The first tab is the summary table, are there any sites with issues? Note that 'totalCount' does not mean # of bouts but # of site-years examined in the script. Site-years only count toward the QF fields if they did not RECORD enough bouts (e.g., 100% sampling impractical bouts are OK for this summary). 
+- The second tab displays the flagged records, if any. In this case, bouts that were 100% sampling impractical (no actual data collected) do show up as 'flags.' 
+- The third tab shows the bout completeness figure. All 'OK' means all sites met bout number targets, yellow sites recorded but did not sample as many bouts as anticipated, red sites did not record or sample enough bouts.
+
+#### Summary
+``` {r bout completeness summary table, eval = annual}
+DT::datatable(fsp1$complete_bout_summary, 
+              caption = glue::glue("Summary table of 'complete_bout' results for 'fsp_boutMetadata' records between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags
+```{r bout completeness flags table, eval = annual}
+if(nrow(fsp1$complete_bout_flags) > 0){
+  DT::datatable(fsp1$complete_bout_flags,
+                caption = glue::glue( "Flags table of 'complete_bout' results for 'fsp_boutMetadata' records between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+  } else {
+print("NO FLAGGED SITE-YEARS")
+}
+```
+
+#### Figure
+``` {r bout completeness figure, eval = annual}
+fsp1$complete_bout_figure
+```
+
+
+### Within bout completeness {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run this check to see whether the number of samples collected or the number of unique named locations per bout meets expectations. The function developed for this is `neonOSqc::complete_within_bout()`. This function requires: 
+
+- A module-specific LUT that outlines expected sample numbers per bout. Follow the file naming convention (mod_within_bout_nums) when creating a new lookup or the function will not work
+- Store lookups here: GitHub/os-data-quality-review/qc_lookup_tables/complete_within_bout_lookups
+- An 'event' variable(s): The input data frame must have a column or set of columns that identify how to group rows into an "event" or "bout" by __siteID__ and __time period__. If data already have a column named `eventID`, just use that! If not, you can pass multiple column names to the `event.var` argument to correctly group the data e.g. `event.var = c('siteID', 'collectDate')` 
+
+This check is appropriate for the monthly run, although if data are downloaded mid-bout this might give a false sense of missing samples or records so interpret results with caution. This function can also be run to look at a full year of data if:
+
+- Your `eventID`/`event.var` variable groups data by year, or
+- You pass the year of the event to the `event.var` argument
+
+Finally, the function allows for counting the number of records or number of unique named locations expected per event for different data tables within a product, but only one table at a time. Run this function multiple times if you have multiple tables to check, and also if you want both record and named location counts produced. The option to count records or named locations must be specified in both the LUT that is created (i.e. in the `tableName` column) and in the function call (e.g. `table.name = 'bbc_percore'`). For more on the inputs and outputs, see `?neonOSqc::complete_within_bout`.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::complete_within_bout()`** function to ensure that the number of plots and samples per bout meet protocol expectations. For BBC, tower plot expected number is typically 20 for large plots or 30 for small plots, but as low as 9 plots at some sites. Two cores (north and south) per clip cell are typically sampled, and either one clip cell (small tower plots) or two clip cells (large tower plots) are sampled per plot, so the sample count is normally two times the plot count for small tower plots and four times the plot count for large tower plots. These expectations are captured in the LUT. 
+
+At the moment, is it not clear if incomplete bouts should be flagged - perhaps if sample numbers fall below XX plots or cores since site-level estimates could be compromised? Likely something to ponder with the Biomass and Productivity TWG. Either way, it is helpful to summarize where records may be missing, since ingest and transition issues (e.g., samples stuck in Fulcrum or L0) might be the root cause and should be checked first if any 'flags' found.
+
+```{r within bout completeness}
+## example function call using bbc data
+fsp.2.plots <- neonOSqc::complete_within_bout(
+  input.df = 'fsp_spectralData_noDups', 
+  mod = 'fsp', 
+  event.var = c('eventID'),
+  table.name = 'fsp_', 
+  type = 'named location', 
+  named.location.var = 'plotID',
+  dataSubset = "named location"
+)
+
+bbc.2.records <- neonOSqc::complete_within_bout(
+  input.df = bbc_percore_noDups,
+  mod = 'bbc',
+  event.var = c('siteID', 'year'),
+  table.name = 'bbc_percore',
+  type= 'record',
+  dataSubset = "samples"
+)
+
+```
+
+Review outputs. 
+
+- The first and third tabs are the summary tables, number of plots and number of records. Are there any sites with issues? Note that 'totalCount' means # of bouts, and bouts only count toward the QF fields if folks did not RECORD enough namedLocations or records (e.g., sampling impractical records are considered 'OK' for purposes of the summary). 
+- The second and fourth tabs display the flagged records (bouts), if any. In this case, if a namedLocation or record count does not meet expectations when excluding sampling impractical records from the count, they DO show up as 'flags.' 
+
+If data that should have been captured are not in Fulcrum or L0, reach out to FSci for more information, unless SN documentation has already occurred.
+
+#### Summary, plots
+``` {r within bout completeness summary table 1}
+DT::datatable(bbc.2.plots$complete_within_bout_summary, 
+              caption = glue::glue("Summary table of plot-level 'complete_within_bout' results for 'bbc_percore' records between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags, plots
+```{r within bout completeness flags table 1} 
+## Viewing flagged bouts
+if(nrow(bbc.2.plots$complete_within_bout_flags) > 0){
+  DT::datatable(bbc.2.plots$complete_within_bout_flags,
+                caption = glue::glue("Flags table of plot-level 'complete_within_bout' results for 'bbc_percore' records between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+}else {
+print("NO FLAGGED BOUTS - # OF PLOTS")
+}
+```
+
+#### Summary, records
+``` {r within bout completeness summary table 2}
+DT::datatable(bbc.2.records$complete_within_bout_summary, 
+              caption = glue::glue("Summary table of record-level 'complete_within_bout' results for 'bbc_percore' records between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags, records
+```{r within bout completeness flags table 2} 
+if(nrow(bbc.2.records$complete_within_bout_flags) > 0){
+  DT::datatable(bbc.2.records$complete_within_bout_flags,
+                caption = glue::glue("Flags table of record-level 'complete_within_bout' results for 'bbc_percore' records between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+}else {
+print("NO FLAGGED BOUTS - # OF RECORDS")
+}
+```
+
+
+### Within record completeness {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run the record completeness check to see whether data are available for all of the core variables for each record in a specific table. The function developed for this is `neonOSqc::complete_within_rec()`, and it has the following features:
+
+- The function does not require a module-specific LUT; however, if groups of sites or types of measurements have different expectations for record completeness, the data must be subset and the function run multiple times
+  - Use the `dataSubset` argument to identify the data subset if running the function multiple times on the same input data frame
+- The function allows users to specify conditions for which `NA` entries are acceptable and are counted as 'complete' 
+- The function assumes data are in long-format. For data that are in wide-format, they will first need to be converted using a utility function like tidyr::pivot_longer (https://tidyr.tidyverse.org/reference/pivot_longer.html)
+- It is possible to either specify how many measurements are expected per unique identifier, or leave the '`num.expected.records.per.sample`' argument set to `NA`, in which case the function will guess how many records are expected 
+- For more on function options and specifics of inputs and outputs, see `?neonOSqc::complete_within_rec`
+
+**Example**: Transform one row of wide-format soil chemistry data into long-format (sls_soilChemistry): 
+
+Input wide-format sls_soilChemistry dataframe:
+
+| sampleID| collectDate|CNratio|nitrogenPercent|organicCPercent|
+| :----: |:----:|:----:| :----:|:----:|
+| CLBJ_001-M-14-4-20190416  | 2019-04-16| 25.9 | 0.17 | 4.47 |
+
+Transforms into three rows in long-format:
+
+| sampleID| collectDate|measurement|value|
+| :----: |:----:|:----:| :----:|:----:|
+| CLBJ_001-M-14-4-20190416| 2019-04-16| CNratio | 25.9 | 
+| CLBJ_001-M-14-4-20190416| 2019-04-16| nitrogenPercent | 0.17 | 
+| CLBJ_001-M-14-4-20190416| 2019-04-16| organicCPercent | 4.47 |
+
+The record completeness check is appropriate for a monthly script, but data from any bouts that are native long-format and are in progress/with samples still being analyzed should be interpreted with caution as false-missingness could be reported. As such, run checks on data after an appropriate time lag. If data will be filtered into different subsets with different required fields, but not all subsets will be present in all downloads, we suggest you create a helper true/false variable that can be used to trigger relevant code chunks, as shown in the template example code.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::complete_within_rec()`** function to check that all the expected variables are filled in. The fields being checked for are the following:
+
+- soil core collection, boutType = microbesBiomass, standingWaterDepth = 0: 
+  - subplotID, coreCoordinateX, coreCoordinateY, collectDate, sampleTiming, biophysicalCriteria, eventID, standingWaterDepth, nTransBoutType, boutType, samplingImpractical, sampleID, sampleCode, toxicodendronPossible, horizon, horizonDetails, soilTemp, litterDepth, sampleTopDepth, sampleBottomDepth, sampleExtent, soilSamplingDevice, soilCoreCount, geneticSampleID, geneticSampleCode, geneticSampleCondition, geneticArchiveSample1Code, geneticArchiveSample2Code, biomassID, biomassCode, biomassSampleCondition
+
+
+```{r within record completeness}
+# Core collect, boutType = microbes & standing water depth = 0
+# Transform data
+sls_soilCoreCollection_long1.1 <- sls_soilCoreCollection %>%
+  dplyr::filter(samplingImpractical == "OK" & boutType == "microbesBiomass" & standingWaterDepth == 0) %>%
+  dplyr::select(
+    dpID, # need to keep metadata columns
+    dpName, # need to keep metadata columns
+    tableName, # need to keep metadata columns
+    domainID, # need to keep metadata columns
+    siteID, # need to keep metadata columns
+    collectDate,
+    sampleID,
+    subplotID, 
+    coreCoordinateX, 
+    coreCoordinateY,
+    sampleTiming, 
+    biophysicalCriteria, 
+    eventID, 
+    standingWaterDepth,
+    boutType,
+    nTransBoutType, 
+    samplingImpractical, 
+    sampleID, 
+    sampleCode, 
+    toxicodendronPossible, 
+    horizon, 
+    horizonDetails, 
+    soilTemp,
+    litterDepth, 
+    sampleTopDepth, 
+    sampleBottomDepth, 
+    sampleExtent, 
+    soilSamplingDevice,
+    geneticArchiveSample1Code, 
+    geneticArchiveSample2Code
+  ) %>%
+  tidyr::pivot_longer(
+    cols = !c(
+      dpID, 
+      dpName,
+      tableName,
+      domainID,
+      siteID,
+      collectDate,
+      sampleID,
+      boutType, 
+    ),
+    names_to = "name",
+    values_to = "measurement",
+    values_transform = as.character)
+
+# Run within-record checks
+if(nrow(sls_soilCoreCollection_long1.1) > 0){
+sls3.field.micro.0.run = T
+sls3.field.micro.0 <-
+  neonOSqc::complete_within_rec(
+    input.df = sls_soilCoreCollection_long1.1,
+    num.expected.records.per.sample = NA,
+    measure.var = "name",
+    measure.value.var = "measurement",
+    id.var = "sampleID",
+    site.var = "siteID",
+    date.var = "collectDate",
+    dataSubset = "microbes, standing water = 0"
+  )
+} else {
+  sls3.field.micro.0.run = F
+}
+
+```
+
+_For the next few sections, outputs will only display if data in this category are available._
+
+**Results for soil core collection, samplingImpractical = "OK", boutType = microbesBiomass, standing water = 0**. First tab displays the summary table for within-record completeness by site. Second tab is the flags table that lists missing measures per sample for records where at least one of the core variables is NA. Since we would prefer to have data for all of these fields, think about Fulcrum requirements and see if we can improve the app, and/or consider training improvements so that people will fill out these fields.  
+
+Also view the two summary figures. The first is a histogram showing % within-record completeness on average. The second figure shows which fields tend to be missing. For SLS data, if sampleCode is omitted, we need to work with the domains to ensure they barcode the original field sample.
+
+#### Summary
+```{r within record completeness table1, eval = sls3.field.micro.0.run}
+DT::datatable(sls3.field.micro.0$complete_within_rec_summary,
+              caption = glue::glue("Summary table of 'complete_within_rec' results for 'sls_soilCoreCollection' records, boutType = microbesBiomass and standing water = 0, between {startDate_checked} and {endDate_checked}. The full list of expected variables is printed above."),
+              options = dtOptions)
+```
+
+#### Flags
+```{r within record completeness table2, eval = sls3.field.micro.0.run}
+# List of samples that have missing measurements
+if(nrow(sls3.field.micro.0$complete_within_rec_flags) > 0){
+  DT::datatable(sls3.field.micro.0$complete_within_rec_flags,
+                caption = glue::glue("Flags table of 'complete_within_rec' results for 'sls_soilCoreCollection' records, boutType = microbesBiomass and standing water = 0, between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+print("NO INCOMPLETE RECORDS: SOIL CORE COLLECTION, MICROBESBIOMASS, STANDING WATER = 0")
+}
+```
+
+#### Figure, overall
+```{r within record completeness figure1, eval = sls3.field.micro.0.run}
+sls3.field.micro.0$complete_within_rec_figure_summary
+```
+
+#### Figure, missing fields
+```{r within record completeness figure2, eval = sls3.field.micro.0.run}
+sls3.field.micro.0$complete_within_rec_figure_flags
+```
+
+### Within record completeness - NULL {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run the record completeness NULL check to see whether data are NULL for all of the appropriate variables for each record in a specific table. The function developed for this is `neonOSqc::complete_within_rec_null()`, and it has the following features:
+
+- The function does not require a module-specific LUT; however, if groups of sites or types of measurements have different expectations for record completeness, the data must be subset and the function run multiple times
+  - Use the `dataSubset` argument to identify the data subset if running the function multiple times on the same input data frame
+- The function assumes data are in long-format. For data that are in wide-format, they will first need to be converted using a utility function like tidyr::pivot_longer (https://tidyr.tidyverse.org/reference/pivot_longer.html)
+- It is possible to either specify how many measurements are expected to be null per unique identifier, or leave the '`num.expected.null.records.per.id.var`' argument set to `NA`, in which case the function will guess how many records are expected to be null
+- For more on function options and specifics of inputs and outputs, see `?neonOSqc::complete_within_rec_null`
+
+**Example**: Transform one row of wide-format sediment chemistry data into long-format (asc_fieldDataStation): 
+
+Input wide-format asc_fieldDataStation dataframe:
+
+| namedLocation|startDate|physicalSedimentSampleID|inorganicSedimentSampleID|carbonSedimentSampleID|
+| :----: |:----:|:----:| :----:|:----:|
+| POSE.AOS.sediment.01|2020-03-27 16:00:00| POSE.1.20200628.SS | NA | NA |
+
+Transforms into three rows in long-format:
+
+| namedLocation|startDate|measurement|value|
+| :----: |:----:|:----:| :----:|:----:|
+| POSE.AOS.sediment.01|2020-03-27 16:00:00| physicalSedimentSampleID | POSE.1.20200628.SS | 
+| POSE.AOS.sediment.01|2020-03-27 16:00:00| inorganicSedimentSampleID | NA | 
+| POSE.AOS.sediment.01|2020-03-27 16:00:00| carbonSedimentSampleID | NA |
+
+The record completeness NULL check is appropriate for a monthly script.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::complete_within_rec_null()`** function to check that all variables that are expected to be NULL are not filled in. 
+
+For the subset of data that are samplingImpractical, the fields being checked are the following: physicalSedimentSampleID, inorganicSedimentSampleID, carbonSedimentSampleID
+
+```{r within record completeness NULL}
+
+#filter to samplingImpractical records and create a unique identifier since sampleIDs are not filled in for SI records. 
+
+asc_fieldDataStation_SI <- sediment$asc_fieldDataStation%>%
+  filter(!is.na(samplingImpractical))%>%
+  dplyr::mutate(tableName="asc_fieldDataStation",
+         dpID="DP1.20194.001",
+         dpName="Sediment chemical and physical properties") %>% 
+  mutate(locationEventID=paste(namedLocation,format(startDate,"%Y%m%d"),sep = "_"))
+#make into long format
+asc_fieldDataStation_SI_longID <- asc_fieldDataStation_SI%>%
+  pivot_longer(c(physicalSedimentSampleID,inorganicSedimentSampleID,carbonSedimentSampleID),values_to = "varValue", names_to = "varName")
+
+#for display purposes, create some filled in values so flags table shows up
+asc_fieldDataStation_SI_longID$varValue[seq(from = 1, to = 150, by = 20)] <- asc_fieldDataStation_SI_longID$locationEventID[seq(from = 1, to = 150, by = 20)]
+
+#run complete_within_rec_null
+asc3.SI <- complete_within_rec_null(
+  input.df = asc_fieldDataStation_SI_longID,
+  num.expected.null.records.per.id.var = 3,
+  measure.var.list = c('physicalSedimentSampleID','inorganicSedimentSampleID','carbonSedimentSampleID'),
+  measure.var = "varName",
+  measure.value.var = "varValue",
+  id.var = "locationEventID",
+  site.var = "siteID",
+  date.var = "startDate"
+)
+
+
+```
+
+**Results for sediment station, samplingImpractical != NA**. First tab displays the summary table for within-record completeness NULL by site. Second tab is the flags table that lists not NULL measures per id.var for records where at least one of the core variables is not NULL. Since we would prefer that all of these fields be NULL, think about Fulcrum requirements and see if we can improve the app, and/or consider training improvements so that people will not fill out these fields.  
+
+Also view the two summary figures. The first is a histogram showing % within-record completeness NULL on average. The second figure shows which fields tend to be filled in. 
+
+#### Summary
+```{r within record completeness NULL table1}
+DT::datatable(asc3.SI$complete_within_rec_null_summary,
+              caption = glue::glue("Summary table of 'complete_within_rec_null' results for 'asc_fieldDataStation' records, samplingImpractical, between {startDate_checked} and {endDate_checked}. The full list of expected variables is printed above."),
+              options = dtOptions)
+```
+
+#### Flags
+```{r within record completeness NULL table2}
+# List of samples that have missing measurements
+if(nrow(asc3.SI$complete_within_rec_null_flags) > 0){
+  DT::datatable(asc3.SI$complete_within_rec_null_flags,
+                caption = glue::glue("Flags table of 'complete_within_rec_null' results for 'asc_fieldDataStation' records, samplingImpractical, between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+print("NO NOT NULL RECORDS: SEDIMENT STATION, SAMPLING IMPRACTICAL")
+}
+```
+
+#### Figure, overall
+```{r within record completeness NULL figure1}
+asc3.SI$complete_within_rec_null_figure_summary
+```
+
+#### Figure, missing fields
+```{r within record completeness NULL figure2}
+asc3.SI$complete_within_rec_null_figure_flags
+```
+
+
+### Upstream-downstream completeness
+
+::: {style="color: SlateBlue"}
+
+Run the upstream-downstream completeness check to determine if child records are present in a downstream table based on parent sample identifier existence upstream. The function developed for this is `neonOSqc::complete_cross_table()`. This function has the following features:
+
+- The function requires two input data frames (upstream, downstream)
+- The variables that uniquely identify a sample in both dataframes (e.g., `sampleID`)
+- There is no module-specific LUT needed
+- The function will identify missing records, but note that if > 1 record is expected downstream from a single upstream sample (e.g., replicates or long-format external lab data), the function will not identify this issue if at least one downstream record is present
+- The function works by string matching parent sampleIDs to child sampleIDs
+  - *Example*: parentID = `SUGG.SS.20191127` and childID = `SUGG.SS.20191127.FIL` is a match
+  - *Example*: parentID = `BARC.SS.20191127.1` and childID = `BARC.SS.20191127.FIL.1` is not a match
+- Identifying replicates downstream can be difficult with this function, and may require data manipulation before running function
+  - *Example*: Changing `BARC.SS.20191127.FIL.1` to `BARC.SS.20191127.1.FIL` to enable string subset pattern matching
+- There is the option to have the function match exact sampleIDs (i.e., `exact.id.match = TRUE`, defaults to FALSE)
+  - This option is useful when parent sampleIDs are present in the downstream table or for data products that use obfuscated sampleIDs containing special characters
+
+In addition, before comparing to the downstream table, the function:
+
+- Automatically excludes records in the upstream table that have `is.na(samplingImpractical) == TRUE` or `samplingImpractical != "OK"` (if `samplingImpractical` exists in the input table). 
+- Has the option of including up to 2 other variables and their appropriate values that indicate if downstream records are not expected. 
+- Will fail if any blank entries remain in the parent sampleID variable following the filtering out of samplingImpractical and/or other 'ignore' variables.
+
+For more on the inputs and outputs, see `?neonOSqc::complete_cross_table`. This function may be appropriate to include in the monthly script, although users should be aware that upstream tables (e.g., field data) often ingest far earlier than the downstream tables (e.g., domain lab data or external lab data), so an appropriate time lag should be employed to ensure samples identified as missing are really missing.
+
+If the downstream table comprises external lab data, the companion function `neonOSqc::complete_cross_table_scs_track()` can also be run to view a summary of sample custody data (shipment and receipt) for samples missing downstream: 
+
+- The function uses the internal-facing `restR2` package to query L0 sample custody data. 
+- To run the function, make sure the latest version of `restR2` is installed: (https://github.com/NEONScience/restR2). 
+- This function can also be used to pull and track sample custody data for samples that ARE available in external facility data.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+#### Complete cross table results {.tabset}
+
+This section uses the **`neonOSqc::complete_cross_table()`** function to check if all superparent records have field data, and then if field records appear in the downstream external lab table. Given the lag time employed, any missing samples should be investigated further. If samples were shipped, received, and not excluded for analysis, make sure to follow up with the lab to see why data are missing, and/or look in SOM for failed uploads.
+
+```{r upstream downstream completeness, results=F, warning=F}
+# Superparent to field data
+asi4.superToField <- neonOSqc::complete_cross_table(
+  parent.input.df = asi_fieldSuperParent,
+  child.input.df = asi_fieldData,
+  parent.date.var = "collectDate",
+  parent.id.var = "parentSampleID",
+  child.id.var = "parentSampleID",
+  ignore.var.1 = "isotopeSamplesCollected",
+  ignore.var.1.values = "N",
+  exact.id.match = T,
+  filter.sampling.impractical = T
+)
+
+# field data to lab data
+asi4.fieldToH2OLab <- neonOSqc::complete_cross_table(
+    parent.input.df = asi_fieldData,
+    child.input.df = asi_externalLabH2OIsotopes,
+    parent.date.var = "collectDate",
+    parent.id.var = "isotopeH2OSampleID",
+    child.id.var = "isotopeH2OSampleID",
+    exact.id.match = T,
+    filter.sampling.impractical = T
+  )
+  
+# Run the companion function for all sample IDs missing from the H2O external lab data
+if(nrow(asi4.fieldToH2OLab$complete_cross_table_flags)>0){
+  asi.scs.track = T
+  asi4.missingH2O <- neonOSqc::complete_cross_table_scs_track(
+      input.df = asi4.fieldToH2OLab$complete_cross_table_flags,
+      id.var = "isotopeH2OSampleID"
+    )
+  }else{
+    asi.scs.track = F
+  }
+```
+
+The first tab displays the dataset-wide summary, % missing downstream comparing superparent to field data. The second tab is the specific flagged (missing) records, if any. The third tab displays the dataset-wide summary, % missing downstream comparing field to external lab tables. And the last tab is the specific flagged (missing) records when comparing these two tables, if any.
+
+##### Summary, superparent to field
+``` {r upstream downstream completeness table1}
+DT::datatable(asi4.superToField$complete_cross_table_summary,
+              caption = glue::glue("Summary table of 'complete_cross_table' results, upstream table = 'fieldSuperParent', downstream table = 'fieldData'. Records created between {startDate_checked} and {endDate_checked}."), 
+              options = dtOptions)
+```
+
+##### Flags, superparent to field
+``` {r upstream downstream completeness table2}
+if(nrow(asi4.superToField$complete_cross_table_flags) > 0){
+DT::datatable(asi4.superToField$complete_cross_table_flags,
+              caption = glue::glue("Flags table of 'complete_cross_table' results, upstream table = 'fieldSuperParent', downstream table = 'fieldData'. Records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+} else {
+print("NO MISSING RECORDS, FIELD SUPER PARENT TO FIELD DATA")
+}
+```
+
+##### Summary, field to externalLab
+``` {r upstream downstream completeness table3}
+DT::datatable(asi4.fieldToH2OLab$complete_cross_table_summary,
+              caption = glue::glue("Summary table of 'complete_cross_table' results, upstream table = 'fieldData', downstream table = 'externalLabH2OIsotopes'. Records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags, field to externalLab
+``` {r upstream downstream completeness table4}
+if(nrow(asi4.fieldToH2OLab$complete_cross_table_flags) > 0){
+DT::datatable(asi4.fieldToH2OLab$complete_cross_table_flags,
+              caption = glue::glue("Flags table of 'complete_cross_table' results, upstream table = 'fieldData', downstream table = 'externalLabH2OIsotopes'. Records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+} else {
+print("NO MISSING RECORDS, FIELD DATA TO EXTERNAL LAB ISOTOPES")
+}
+```
+
+
+
+#### Complete cross table Sample Custody tracking results {.tabset}
+
+If there are any flags from the above check, view outputs from companion sample custody function that checks shipment and receipt data. Flags in shipment means samples not shipped, flags in receipt means samples not received or not accepted for analysis.
+
+##### Shipment Summary
+``` {r upstream downstream completeness companion table 1, eval = asi.scs.track}
+DT::datatable(asi4.missingH2O$complete_cross_table_scs_track_shipment_summary,
+              caption = glue::glue("Summary table of 'complete_cross_table_scs_track' shipping results, records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Shipment Flags
+``` {r upstream downstream completeness companion table 2, eval = asi.scs.track}
+DT::datatable(asi4.missingH2O$complete_cross_table_scs_track_shipment_flags,
+              caption = glue::glue("Flags table of 'complete_cross_table_scs_track' shipping results, records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Receipt Summary
+``` {r upstream downstream completeness companion table 3, eval = asi.scs.track}
+DT::datatable(asi4.missingH2O$complete_cross_table_scs_track_receipt_summary,
+              caption = glue::glue("Summary table of 'complete_cross_table_scs_track' receipt results, records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Receipt Flags
+``` {r upstream downstream completeness companion table 4, eval = asi.scs.track}
+DT::datatable(asi4.missingH2O$complete_cross_table_scs_track_receipt_flags,
+              caption = glue::glue("Flags table of 'complete_cross_table_scs_track' receipt results, records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+
+
+### DP-specific completeness checks
+
+::: {style="color: SlateBlue"}
+
+Add any additional code needed to conduct DP-specific checks related to completeness. IF NONE ARE NEEDED, DELETE THIS SECTION. Make a subsection (####), with appropriate commentary for what is being checked, what results mean and how to follow up for each unique custom test that is needed.
+
+Whenever possible, run custom code outputs through the `neonOSqc::format_custom_outputs()` function, which will produce an output list standardized to match the other generic `neonOSqc` functions. This is important so that results of custom tests can be summarized and aggregated for reporting purposes. See the **DP-specific plausibility** section for more info and an example.
+
+:::
+
+```{r Dp specific completeness}
+# Add DP specific code/tables/figs here, if none are needed can delete this code chunk
+
+```
+
+
+## Timeliness
+
+### Bout timing {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run bout timing checks to determine whether bouts have been conducted at the appropriate times according to protocol guidelines. The function developed for this check is `neonOSqc::timely_bout()`. The function has the following features: 
+
+- A module-specific LUT is required to define expected bout timing according the the protocol 
+- Follow the file naming convention ('mod.bout.dates') when creating a new LUT or the function will not work 
+- Store LUTs here: GitHub/os-data-quality-review/qc_lookup_tables/timely_bout_lookups
+- **Note**: This function identifies the nearest bout window to the specified sampling date, and compares the sampling date to that window. This may lead to incorrect results for sampling that was greatly outside of the desired sampling window. For example, if the sampling date is extremely early/late compared to the desired sampling window, then the function may erroneously assign it to the next earlier/later sampling window and compare it to those dates instead
+- For more on inputs and outputs, see `?neonOSqc::timely_bout`
+
+This check may be most appropriate for inclusion in an annual QC script. It can be run monthly, but data from any in-progress bouts must be interpreted with caution and re-checked once the bout is complete. As such, run checks on data after an appropriate time lag.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses **`neonOSqc::timely_bout()`** to examine bout timing and whether sample collections fell within the site-specific sampling windows dictated in the soil protocol, Appendix C (and summarized in the function's companion lookup table). If any bouts are far (> a few days) outside the protocol windows, follow up with FSci is advised to make sure this was intentionally done to capture the intended biophysical criteria. 
+
+```{r bout timeliness, warning = F}
+# Soil field table, bout timing
+sls5 <- neonOSqc::timely_bout(
+  input.df = sls_soilCoreCollection,
+  mod = "sls",
+  date.var = "collectDate",
+  site.var = "siteID",
+  fig = TRUE,
+  id.var = "sampleID"
+)
+```
+
+First tab displays the summary table, and the second shows flagged sampling days that fall outside of the windows specified in the LUT. Positive values indicate collection after end of the bout window, negative values before start of the bout window.  
+
+Also, examine the figures. Third tab shows a histogram for all samples combined, while the last tab is an interactive plot only for samples collected outside of the nearest bout window. This allows identification of site/year combinations with issues and by how many days.
+
+#### Summary
+```{r bout timelness table 1} 
+DT::datatable(sls5$timely_bout_summary,
+              caption = glue::glue("Summary table of 'timely_bout' results for 'sls_soilCoreCollection', records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags
+```{r bout timelness table 2} 
+if(nrow(sls5$timely_bout_flags) > 0){
+  DT::datatable(sls5$timely_bout_flags, 
+                caption = glue::glue("Flags table of 'timely_bout' results for 'sls_soilCoreCollection', records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions
+  )
+} else {
+  print("NO RECORDS FLAGGED FOR BOUT TIMING")
+}
+```
+
+#### Figure 1
+```{r bout timeliness figure 1}
+# Static histogram (1 panel per bout window) for all samples
+sls5$timely_bout_figure_all
+```
+
+#### Figure 2
+```{r bout timeliness figure 2}
+sls5$timely_bout_figure_flags
+```
+
+
+### Bout duration and spacing 
+
+::: {style="color: SlateBlue"}
+
+Run bout duration and spacing checks to see if bout durations or bout spacing (in days) meet expectations defined in the protocol. The functions developed for these checks are `neonOSqc::timely_bout_duration()` and `neonOSqc::timely_bout_spacing()`. These functions have the following features:
+
+- They do not require module-specific LUTs 
+- If groups of sites or types of bouts have different expectations for duration or spacing, data must be subset and the function(s) run multiple times
+  - When the functions are run multiple times, use the `dataSubset` argument to make the summary outputs distinct
+- For more on function options and specifics of inputs and outputs, see `?neonOSqc::timely_bout_duration` and `?neonOSqc::timely_bout_spacing` help pages
+
+These checks can be included in the monthly script if bouts tend to be short and tightly spaced. For longer-duration bouts and bouts spaced by many weeks to months, the annual version will be more appropriate.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+#### Bout duration {.tabset}
+
+This section uses the **`neonOSqc::timely_bout_duration()`** function to check for BBC bout duration issues - i.e., bouts lasting longer than 6 weeks or 42 days as specified in the protocol. If any sites are flagged, reach out to FSci to understand why bouts took so long and see what can be done to avoid this in future.
+
+```{r bout duration}
+bbc7 <- neonOSqc::timely_bout_duration(
+  input.df = bbc_percore %>% mutate(eventID = paste0("BBC.", year, ".", siteID)),
+  bout.var = "eventID",
+  date.var = "collectDate",
+  duration = 42, # units = days
+  fig = T
+)
+```
+
+Examine the outputs. The first tab displays the dataset-wide summary of sites with bout duration issues. The second tab shows the flagged bouts, where duration is longer than the threshold specified in the function call. Lastly, check the figure that presents the summary table information graphically. If no issues in this report, 0% of bouts are flagged.
+
+##### Summary
+```{r bout duration table1}
+DT::datatable(bbc7$timely_bout_duration_summary,
+              caption = glue::glue("Summary table of 'timely_bout_duration' results for 'bbc_percore', records created between {startDate_checked} and {endDate_checked}."), 
+              options = dtOptions)
+```
+
+##### Flags
+```{r bout duration table2}
+if(nrow(bbc7$timely_bout_duration_flags) > 0){
+  DT::datatable(sls7$timely_bout_duration_flags,
+                caption = glue::glue("Flags table of 'timely_bout_duration' results for 'bbc_percore', records created between {startDate_checked} and {endDate_checked}."), 
+                options = dtOptions
+  )
+} else {
+  print("NO FLAGGED BOUTS, ALL FINISHED WITHIN 6 WEEKS")
+}
+```
+
+##### Figure
+```{r bout duration figure}
+bbc7$timely_bout_duration_figure
+```
+
+
+#### Bout spacing {.tabset}
+
+This section uses the **`neonOSqc::timely_bout_spacing()`** function to check whether bout spacing (in days) meets protocol expectations. For ASI data, this function is run twice, once for streams/rivers and only for aquatic microbes (amc) bouts, and once for lakes. If any records fail bout timeliness checks, follow up with FSci.
+
+```{r bout spacing}
+# First, assign sample classes so that aquatic microbes bouts (amc) can be treated appropriately
+asi_fieldSuperParent$sampleClasses <- NA
+
+# Pull sample classes from the NEON API and include them in the parent record. 
+for (i in 1:nrow(asi_fieldSuperParent)) {
+  sampleClasses <- jsonlite::fromJSON(httr::content(
+    neonUtilities:::getAPI(
+      paste0(
+        "https://data.neonscience.org/api/v0/samples/classes?sampleTag=",
+        asi_fieldSuperParent$parentSampleID[i]
+      ),
+      token = Sys.getenv('NEON_PAT')
+    ),
+    as = "text",
+    encoding = "UTF-8"
+  )
+    )
+  asi_fieldSuperParent$sampleClasses[i] <- sampleClasses$data$sampleClasses[!stringr::str_detect(sampleClasses$data$sampleClasses,"_")]
+}
+rm(i,sampleClasses)
+
+asi6.lakes <- neonOSqc::timely_bout_spacing(
+    input.df = asi_fieldSuperParent %>% 
+      dplyr::filter(siteID %in% c("SUGG", "BARC", "CRAM", "LIRO", "PRPO", "PRLA", "TOOK") &
+                      is.na(samplingImpractical)),
+    bout.var = "eventID",
+    date.var = "collectDate",
+    threshold = 20,
+    threshold.type = ">",
+    dataSubset = "lakes"
+  )
+
+asi6.streamRiver <- neonOSqc::timely_bout_spacing(
+    input.df = asi_fieldSuperParent %>% 
+      dplyr::filter(!siteID %in% c("SUGG", "BARC", "CRAM", "LIRO", "PRPO", "PRLA", "TOOK") & 
+                      grepl("amc", sampleClasses) & is.na(samplingImpractical)),
+    bout.var = "eventID",
+    date.var = "collectDate",
+    threshold = 20,
+    threshold.type = ">",
+    dataSubset = "streams/rivers"
+  )
+
+rm(sampleClasses)
+```
+
+Examine all outputs - first tab is the dataset-wide summary that shows how many bouts did not meet the spacing requirements in streams and lakes. We expect at least 20 days between bouts. The second tab is the flagged records, bout pairs that did not meet spacing requirements. The third tab is the dataset-wide summary for lakes, how many bouts did not meet the spacing requirements. We expect at least 20 days between bouts. The last tab shows the flagged records (if any), bout pairs that did not meet spacing requirements. 
+
+##### Summary, streams and rivers
+```{r bout spacing table1}
+DT::datatable(asi6.streamRiver$timely_bout_spacing_summary,
+              caption = glue::glue("Summary table of 'timely_bout_spacing' results for 'asi_fieldSuperParent', streams and rivers - records created between {startDate_checked} and {endDate_checked}."), 
+              options = dtOptions)
+```
+
+##### Flags, streams and rivers
+```{r bout spacing table2}
+if(nrow(asi6.streamRiver$timely_bout_spacing_flags) > 0){
+  DT::datatable(asi6.streamRiver$timely_bout_spacing_flags,
+                caption = glue::glue("Flags table of 'timely_bout_spacing' results for 'asi_fieldSuperParent', streams and rivers - records created between {startDate_checked} and {endDate_checked}."), 
+                options = dtOptions
+  )
+} else {
+  print("NO FLAGGED BOUT PAIRS IN STREAMS OR RIVERS")
+}
+```
+
+##### Summary, lakes
+```{r bout spacing table3}
+DT::datatable(asi6.lakes$timely_bout_spacing_summary,
+              caption = glue::glue("Summary table of 'timely_bout_spacing' results for 'asi_fieldSuperParent', lakes - records created between {startDate_checked} and {endDate_checked}."), 
+              options = dtOptions)
+```
+
+##### Flags, lakes
+```{r bout spacing table4}
+if(nrow(asi6.lakes$timely_bout_spacing_flags) > 0){
+  DT::datatable(asi6.lakes$timely_bout_spacing_flags,
+                caption = glue::glue("Flags table of 'timely_bout_spacing' results for 'asi_fieldSuperParent', lakes - records created between {startDate_checked} and {endDate_checked}."), 
+                options = dtOptions
+  )
+} else {
+  print("NO FLAGGED BOUT PAIRS IN LAKES")
+}
+```
+
+
+### Processing timing
+
+::: {style="color: SlateBlue"}
+
+Run timely_processing checks to determine whether activities associated with sample processing (e.g., sorting, oven drying, extracting, measuring, analyzing) are conducted within the timelines specified in the protocol. The function developed for this is `neonOSqc::timely_process()`. The function has the following features:
+
+- The function requires a list of data frames (can be the list generated by `neonUtilities::loadByProduct()`, or a custom list)
+- The function requires a module-specific LUT that outlines desired process checks and associated times (h) defined in protocols or lab contracts
+- Follow the file naming convention (mod.timely_process) when creating a new lookup or the function will not work
+- Find a short README on table requirements and store your own lookups here: GitHub/os-data-quality-review/qc_lookup_tables/timely_process_lookups
+- An important caveat: Data product process timeliness checks are conducted between two date-time variables within the same table. To check process timeliness across tables, you must:
+  - Merge the date-time variables into a single input data frame, and
+  - Make sure the comparison is captured in the LUT before running the function
+- The output of this function is a list of lists, arranged by the processes that are checked. Consider unpacking into individual lists to mirror the outputs of other functions, then remove the list of lists before proceeding
+- For more on the inputs and outputs, see `?neonOSqc::timely_process`
+
+This check is appropriate for the monthly run, except for when wait times between processes are very long and then the annual version will be better. 
+
+To assess the timeliness of sample custody transactions, the companion function `neonOSqc::timely_process_scs_track()` can be run in addition to or separately from `neonOSqc::timely_process()` to track the timeliness of two sample custody processes (collection to shipment, shipment to receipt). The sample custody tracking function has the following features:
+
+- It does not require a LUT. Rather, input arguments define the preferred and required time (h) for both processing steps
+- The function requires an input data frame and associated sampleID and collection date variables
+  - The input data frame should contain the sampleIDs that represent the identifiable sample tags associated with sample custody 
+- The function uses the `restR2` package to query L0 sample custody data. To run the function, make sure the latest version of `restR2` is installed (https://github.com/NEONScience/restR2
+- *NOTE*: If sampleIDs are obfuscated upon publication to the portal, the companion function must be run using sample tags from L0 data (`restR2`) rather than sample tags published with portal data (`neonUtilities`)
+
+Lastly, to assess the timeliness of lab data return, it is possible to run the function `neonOSqc::timely_process_lab_data_return()`. This will test whether data from external labs were uploaded to the NEON database under the timeliness defined in the lab's contract or statement of work. This function has the following features: 
+
+- It requires a Level 0 (L0) data frame containing external lab data that has the field 'transactionDate', which is generated when an external lab uploads data and is the date-timestamp of the upload
+- The function requires users to identify the field in the data frame that contains child sample IDs, and the amount of time (d) required of an external lab to upload data
+- The function uses the `restR2` package to query L0 sample custody data. To run the function, make sure the latest version of `restR2` is installed (https://github.com/NEONScience/restR2
+- This function is not illustrated via a code chunk in the template, but for example code as well as information on inputs and outputs, see `?neonOSqc::timely_process_lab_data_return`
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::timely_process()`** function to determine whether NTR activities associated with sample processing are conducted according to the timeliness criteria specified in the protocol and external lab contracts.  
+
+``` {r processing timing, message = F, warning = F, results = F}
+# Manual pull of shipment data, so that we can have ship to analyze as a process check
+IDs <- unique(ntr_externalLab$kclSampleID)
+scs <- restR2::get.os.l0.data(sampleTag=IDs,
+                              stack='prod',
+                              dpID="DP0.10000.001",
+                              ingest="scs_shipmentCreation_in")
+
+# Add to chemistry data
+ntr_externalLab_withShip <- ntr_externalLab %>%
+  dplyr::left_join(dplyr::select(scs, sampleID, shipDate), 
+                   by = c("kclSampleID" = "sampleID")) %>%
+  dplyr::mutate(shipmentDate = as.Date(shipDate, format = "%Y-%m-%d"),
+                analysisDate = dplyr::if_else(ammoniumNAnalysisDate >= nitrateNitriteNAnalysisDate, 
+                                              ammoniumNAnalysisDate, 
+                                              nitrateNitriteNAnalysisDate))
+
+# Make new list that contains this DF
+ntrList <- list(ntr_internalLab = ntr_internalLab, 
+                ntr_externalLab = ntr_externalLab_withShip)
+
+#Run the function for data product checks
+timelyProcNTR <- neonOSqc::timely_process(mod="ntr",
+                                          input.df.list= ntrList)
+
+# Unpack the individual output lists within the master output list
+ntr7 <- timelyProcNTR$timely_process_collect_to_extract_return_list
+ntr8 <- timelyProcNTR$timely_process_collect_to_analyze_return_list
+ntr9 <- timelyProcNTR$timely_process_collect_to_ship_return_list
+ntr10 <- timelyProcNTR$timely_process_ship_to_analyze_return_list
+
+# Remove unneeded lists
+rm(timelyProcNTR)
+rm(ntrList)
+```
+
+
+#### Timely process: Collection to extraction {.tabset}
+
+First examine the summary table in the first tab, followed by any flags in the second tab. Protocol-specified extraction timing: Minimum = 1 day (24 hrs), preferred and maximum = 36 hrs. The SLS protocol says to perform KCl extraction 'within 1 day of collection.' Follow up with any sites flagged as not following this guidance as we want to understand why the protocol was not followed.
+
+##### Summary, collect to extract
+``` {r timely_process summary table1}
+DT::datatable(ntr7$timely_process_collect_to_extract_summary, 
+              caption = glue::glue("Summary table of 'timely_process' results for 'ntr_internalLab', collectDate to extractionStartDate - records created between {startDate_checked} and {endDate_checked}."), 
+              options = dtOptions)
+```
+
+##### Flags, collect to extract
+``` {r timely_process flags table1}
+if(nrow(ntr7$timely_process_collect_to_extract_flags) > 0){
+  DT::datatable(ntr7$timely_process_collect_to_extract_flags,
+                caption = glue::glue("Flags table of 'timely_process' results for 'ntr_internalLab', collectDate to extractionStartDate - records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("ALL SAMPLES EXTRACTED WITHIN 36 HRS OF COLLECTION")
+}
+```
+
+
+#### Timely process: Collection to analysis {.tabset}
+
+First examine the summary table in the first tab, followed by any flags in the second tab. Protocol-specific analysis timing: Minimum = 7 days, preferred = 5.5 months, maximum = 6 months, which is the wait interval on the external lab table. If many records are flagged, the wait interval may need to be longer, or we should talk with the lab about turnaround times (see below).
+
+##### Summary, collect to analyze
+``` {r timely_process summary table2}
+DT::datatable(ntr8$timely_process_collect_to_analyze_summary,
+              caption = glue::glue("Summary table of 'timely_process' results for 'ntr_externalLab', collectDate to analysisDate - records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags, collect to analyze
+``` {r timely_process flags table2}
+if(nrow(ntr8$timely_process_collect_to_analyze_flags) > 0){
+  ntr8$timely_process_collect_to_analyze_flags <- ntr8$timely_process_collect_to_analyze_flags %>% 
+    dplyr::mutate(difftimeDays = round(as.numeric(difftimeHours)/24))
+  
+  DT::datatable(ntr8$timely_process_collect_to_analyze_flags, 
+                caption = glue::glue("Flags table of 'timely_process' results for 'ntr_externalLab', collectDate to analysisDate - records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("ALL SAMPLES ANALYZED WITHIN 5.5 MONTHS OF COLLECTION")
+}
+```
+
+
+#### Timely process: Collection to shipping {.tabset}
+
+First examine the summary table in the first tab, followed by any flags in the second tab. Protocol-specific timing: Minimum = 1 day, preferred and maximum = 60 days, which matches Table 5 instructions in the soil protocol. If many records are flagged, need to follow up with FS to see if future shipping schedules need to be adjusted. 
+
+##### Summary, collect to ship
+``` {r timely_process summary table3}
+DT::datatable(ntr9$timely_process_collect_to_ship_summary,
+              caption = glue::glue("Summary table of 'timely_process' results for 'ntr_externalLab', collectDate to shipmentDate - records created between {startDate_checked} and {endDate_checked}."), 
+              options = dtOptions)
+```
+
+##### Flags, collect to ship
+``` {r timely_process flags table3}
+if(nrow(ntr9$timely_process_collect_to_ship_flags) > 0){
+  ntr9$timely_process_collect_to_ship_flags <- ntr9$timely_process_collect_to_ship_flags %>% 
+    dplyr::mutate(difftimeDays = round(as.numeric(difftimeHours)/24))
+  
+  DT::datatable(ntr9$timely_process_collect_to_ship_flags, 
+                caption = glue::glue("Flags table of 'timely_process' results for 'ntr_externalLab', collectDate to shipmentDate - records created between {startDate_checked} and {endDate_checked}."), 
+                options = dtOptions)
+} else {
+  print("ALL SAMPLES SHIPPED WITHIN 2 MONTHS OF COLLECTION")
+}
+```
+
+
+#### Timely process: Shipping to analysis {.tabset}
+
+First examine the summary table in the first tab, followed by any flags in the second tab. Protocol-specific timing: Minimum = 1 day, preferred and maximum = 90 days, which is the contracted lab turnaround time. If many records are flagged, need to follow up with the external lab to see why they are having trouble getting samples analyzed in a timely manner. 
+
+##### Summary, ship to analyze
+``` {r timely_process summary table4}
+DT::datatable(ntr10$timely_process_ship_to_analyze_summary,
+              caption = glue::glue("Summary table of 'timely_process' results for 'ntr_externalLab', shipmentDate to analysisDate - records created between {startDate_checked} and {endDate_checked}."), 
+              options = dtOptions)
+```
+
+##### Flags, ship to analyze
+``` {r timely_process flags table4}
+if(nrow(ntr10$timely_process_ship_to_analyze_flags) > 0){
+  ntr10$timely_process_ship_to_analyze_flags <- ntr10$timely_process_ship_to_analyze_flags %>% 
+    dplyr::mutate(difftimeDays = round(as.numeric(difftimeHours)/24))
+  
+  DT::datatable(ntr10$timely_process_ship_to_analyze_flags, 
+                caption = glue::glue("Summary table of 'timely_process' results for 'ntr_externalLab', shipmentDate to analysisDate - records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("ALL SAMPLES ANALYZED WITHIN 3 MONTHS OF SHIPPING")
+}
+```
+
+
+#### Timely process: Sample Custody tracking {.tabset}
+
+::: {style="color: SlateBlue"}
+
+THIS IS ANOTHER WAY TO LOOK AT PROCESS TIMELINESS, SPECIFICALLY COLLECT TO SHIP AND SHIP TO RECEIVE. USE THIS FUNCTION IF APPROPRIATE, OR DELETE THIS WHOLE SECTION IF NOT. IF KEEPING THIS SECTION, REMOVE THIS INSTRUCTIONAL TEXT FROM THE DP SPECIFIC SCRIPT.
+
+:::
+
+This section uses the **`neonOSqc::timely_process_scs_track()`** function to assess whether samples are shipped and received according to the protocol expectations and external lab contracts.
+
+```{r process timeliness companion, results=F, warning=F}
+# Run the sample custody tracking companion function for H2O external lab data
+timelyProc_scsTrackH2O <- neonOSqc::timely_process_scs_track(
+    input.df=asi_externalLabH2OIsotopes,
+    date.var="collectDate",
+    id.var="isotopeH2OSampleID",
+    collect.to.ship.preferred=1440,
+    collect.to.ship.required=1440,
+    ship.to.receive.required=120
+  )
+
+# Unpack the individual output lists within the master output list then remove the master list
+asi11.scsTrack1H2O <- timelyProc_scsTrackH2O$timely_process_collect_to_ship_return_list
+asi11.scsTrack2H2O <- timelyProc_scsTrackH2O$timely_process_ship_to_receive_return_list
+rm(timelyProc_scsTrackH2O)
+```
+
+First examine the summary table in the first tab. Then the second tab, whic contains the flagged records, samples not shipped according to the timeliness criteria specified. Reach out to FSci to discuss possible issues here.
+
+##### Summary, collect to ship
+```{r process timeliness companion table1}
+DT::datatable(asi11.scsTrack1H2O$timely_process_collect_to_ship_summary,
+              caption = glue::glue("Summary table of 'timely_process_scs_track' results for 'asi_externalLabH2OIsotopes' shipping, records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags, collect to ship
+```{r process timeliness companion table2}
+# View key outputs - top rows of flagged sites, observatory-wide summary
+# Key outputs for the timeliness check between collection and shipment 
+
+if(nrow(asi11.scsTrack1H2O$timely_process_collect_to_ship_flags) > 0){
+  DT::datatable(asi11.scsTrack1H2O$timely_process_collect_to_ship_flags,
+                caption = glue::glue("Flags table of 'timely_process_scs_track' results for 'asi_externalLabH2OIsotopes' shipping, records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO FLAGGED RECORDS, COLLECT TO SHIP TIMING")
+}
+```
+
+
+### DP-specific timeliness checks
+
+::: {style="color: SlateBlue"}
+
+Add any additional code needed to conduct DP-specific checks related to timeliness. IF NONE ARE NEEDED, DELETE THIS SECTION. Make a subsection (####) with appropriate commentary for what is being checked, what results mean and how to follow up for each unique custom test that is needed.
+
+Whenever possible, run custom code outputs through the `neonOSqc::format_custom_outputs()` function, which will produce an output list standardized to match the other generic `neonOSqc` functions. This is important so that results of custom tests can be summarized and aggregated for reporting purposes. See the **DP-specific plausibility** section for more info and an example.
+
+:::
+
+```{r Dp specific timeliness}
+# Add DP specific code/tables/figs here, if none are needed delete this code chunk
+
+```
+
+
+
+## Plausibility
+
+### Summarize LOV options and identify 'flags' {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Summarize the prevalence of flags or anomalous conditions for one or many LOV columns. Many tables inherently have 'quality flag' type LOV fields, and the `neonOSqc::plausible_count_lov()` function can be used to assess how often data or samples were collected under non-ideal conditions. The function has the following features:
+
+- Requires specification of which columns should have values summarized, and 
+- Needs an input defining values within the LOV options that are NOT considered 'flag' values. This can be a list of options
+- This check is appropriate for the monthly run
+- For more on the inputs and outputs, see `?neonOSqc::plausible_count_lov`
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+In this section, INV data are checked with the **`neonOSqc::plausible_count_lov()`** function to look for issues in the LOV fields in the fieldData table. Variables of interest are '`biophysicalCriteria`' and '`remarks`'. The output is mostly informational, but it could help to reach out to FSci for sites with many instances of 'flags' to understand root cause and if we can do anything to improve or prevent in future. 
+
+```{r plausible_count_lov}
+## specify the columns that contain the LOV values of interest
+inv.lov.columns <- c('biophysicalCriteria', 'remarks')
+
+## specify the LOV values that should NOT be flagged by the function. if >1 value within an LOV field should be 'not flagged', pass those values as a character vector within a list
+inv.lov.values <- c(list(c('OK - no known exceptions', 'unknown - logistical')), 
+                    list(c(NA, "COVID19")))
+
+## run the function
+inv12 <- neonOSqc::plausible_count_lov(
+  input.df = inv_fieldData, 
+  cols = inv.lov.columns,
+  vals = inv.lov.values
+)
+```
+
+Examine the outputs. The first tab shows the high-level summary organized by site. The second tab displays the 'brief' summary, which lumps everything together by site for a very high-level look at all LOV values (and remarks). And in the third tab, examine the flagged records.
+
+#### Summary
+```{r plausible count LOV table1}
+DT::datatable(inv12$plausible_count_lov_summary,
+              caption = glue::glue("Summary table of 'plausible_count_lov' results for 'inv_fieldData' records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Brief summary
+```{r plausible count LOV table2}
+DT::datatable(inv12$plausible_count_lov_summary_extra,
+              caption = glue::glue("Brief summary table of 'plausible_count_lov' results for 'inv_fieldData' records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags
+```{r plausible count LOV table3}
+DT::datatable(inv12$plausible_count_lov_flags,
+              caption = glue::glue("Flags table of 'plausible_count_lov' results for 'inv_fieldData' records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+
+### Range checks {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Assessing the plausibility of numeric values is a multi-step process. Acceptable ranges, outside of which we may some day wish to flag data, can be informed by: (1) a data driven approach using NEON's own data and applying statistical methods to identify outliers, (2) leveraging information from your field of expertise/openly available databases from other relevant groups or publications, or (3) static values that are specified by NEON protocols or contracts with external labs.
+
+The parser does a great job of checking against **universal** ranges (i.e. one minimum and maximum value for all sites). However, LGMs should develop **site-specific**, **date-specific** (e.g. seasonal), or **species-specific** ranges and routinely check incoming data against these finer-grained values. The function can also help LGMs detect numeric values that fall outside of guidelines specified in SOPs (for example, masses or volumes that do not conform to protocol guidelines).
+
+We recommend using the function `neonOSqc::plausible_percentile_range_check()` to complete these checks. This function has the following features:
+
+- Data must be converted to long-format (if not already in this format) to use this function
+  - See example of wide-to-long format conversion in the Within record completeness section
+- The function uses 'min' and 'max' values specified in a LUT to highlight records outside of expected ranges
+- 'Min' and 'max' values and column headers are left up to user discretion - some examples include the 95% or 99% percentile ranges, _X_ standard deviations from the mean, or the interquartile range
+- The function does not create the LUT
+  - The folder where the LUTs live contains a Readme that points to example scripts for threshold table creation, using SWC and SLS data as examples. 
+- When creating a new LUT, follow the file naming convention (mod.historic.ranges) or the function will not run. 
+- Store LUTs and find Readme with detailed info here: GitHub/os-data-quality-review/qc_lookup_tables/plausible_historic_ranges_lookups
+- This check is appropriate for the monthly run
+- For more on function inputs and outputs, see `?neonOSqc::plausible_percentile_range_check`
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::plausible_percentile_range_check()`** function to determine if incoming values for SWC data fall outside ranges calculated using historic data. If records are flagged, they fall outside the 95% quantile range, which is approximately 2 standard deviations from the mean. This check is performed for each variable-site-season combination. Incoming values are checked against historic ranges summarized in a lookup table saved in Github. Before running the function, data are organized and season is added as a 'rangeDivision' grouping variable.
+
+```{r plausible historic ranges data wrangling, results = F}
+# This example works off the 'swc' mod and will show how to 1) add range division (e.g., grouping) variable
+# to data, 2) convert data from wide-format to long-format if needed, and 3) run the function for
+# multiple tables within a mod. Data for this example comes from Surface water chemistry - DP1.20093.001
+
+# Make temporary data frames with added seasons and temp site IDs
+rangeCheckList <- list(
+  swc_fieldSuperParent,
+  swc_externalLabDataByAnalyte
+)
+
+# Use 'for()' loop to populate required 'rangeDivision' variable
+for (i in 1:length(rangeCheckList)) {
+  rangeCheckList[[i]]$rangeDivision <- NA
+  rangeCheckList[[i]]$collectYearDay <- as.Date(rangeCheckList[[i]]$collectDate)
+  for (j in 1:nrow(rangeCheckList[[i]])) {
+    if (stringr::str_detect(rangeCheckList[[i]]$collectDate[j],"-12-|-01-|-02-")) {
+      rangeCheckList[[i]]$rangeDivision[j] <- "winter"
+    }
+    if (stringr::str_detect(rangeCheckList[[i]]$collectDate[j],"-03-|-04-|-05-")) {
+      rangeCheckList[[i]]$rangeDivision[j] <- "spring"
+    }
+    if (stringr::str_detect(rangeCheckList[[i]]$collectDate[j],"-06-|-07-|-08-")) {
+      rangeCheckList[[i]]$rangeDivision[j] <- "summer"
+    }
+    if (stringr::str_detect(rangeCheckList[[i]]$collectDate[j],"-09-|-10-|-11-")) {
+      rangeCheckList[[i]]$rangeDivision[j] <- "autmn"
+    }
+  }
+}
+ 
+# Assign names to list elements
+names(rangeCheckList) <- c(
+   "swc_fieldSuperParent_rangeCheck",
+   "swc_externalLabDataByAnalyte_rangeCheck"
+ )
+
+# Unpack list contents to the Global Environment
+list2env(rangeCheckList, envir=.GlobalEnv)
+
+# For swc_fieldSuperParent, need to convert wide-format data to long-format
+swc_fieldSuperParent_rangeCheck <-
+  swc_fieldSuperParent_rangeCheck %>%
+  tidyr::pivot_longer(
+    c(maxDepth,
+      lakeSampleDepth1,
+      dissolvedOxygen,
+      dissolvedOxygenSaturation,
+      specificConductance,
+      waterTemp),
+    names_to = "variableName",
+    values_to = "variableValue"
+  ) %>%
+  dplyr::filter(!is.na(variableValue))
+
+# For swc_externalLabDataByAnalyte, data is already in long-format so not much extra wrangling needed
+swc_externalLabDataByAnalyte_rangeCheck <-
+  swc_externalLabDataByAnalyte_rangeCheck %>%
+  dplyr::filter(!is.na(analyteConcentration) & 
+                  !analyte == "UV Absorbance (254 nm)") # remove variable with few prior data, so not in the LUT
+# For purposes of showing all functionality in the template, change one of the analyte LOVs so users can render the missing combo table
+swc_externalLabDataByAnalyte_rangeCheck$analyte[swc_externalLabDataByAnalyte_rangeCheck$analyte=="TSS - Dry Mass"] <- "TSS - Wet Mass"
+
+# Remove unneeded list
+rm(rangeCheckList)
+```
+
+
+```{r plausible historic ranges run function}
+rangeThreshold <- 10
+
+swc12.superParent <- plausible_percentile_range_check(
+   mod = "swc",
+   input.df = swc_fieldSuperParent_rangeCheck,
+   table.name = "swc_fieldSuperParent",
+   id.var = "parentSampleID",
+   date.var = "collectDate",
+   measure.var = "variableName",
+   measure.value.var = "variableValue",
+   range.division.var = "rangeDivision",
+   lookup.range.min.var = "ninety.five.quant.min",
+   lookup.range.max.var = "ninety.five.quant.max",
+   threshold = rangeThreshold,
+   include.rpd = T
+ )
+
+ swc12.externalLab <- plausible_percentile_range_check(
+   mod = "swc",
+   input.df = swc_externalLabDataByAnalyte_rangeCheck,
+   table.name = "swc_externalLabDataByAnalyte",
+   id.var = "sampleID",
+   date.var = "collectDate",
+   measure.var = "analyte",
+   measure.value.var = "analyteConcentration",
+   range.division.var = "rangeDivision",
+   lookup.range.min.var = "ninety.five.quant.min",
+   lookup.range.max.var = "ninety.five.quant.max",
+   threshold = rangeThreshold,
+   include.rpd = T
+ )
+```
+
+Examine the outputs. The first tab contains the summary table for checking all analytes in swc_externalLabDataByAnalyte - how many records are flagged as outside the thresholds overall and per site?
+
+Then, look at records flagged by the function on the second tab. If the resulting table is very long list (high proportion) of flagged records, the criteria may need to be re-evaluated such that only the actually worrisome/problematic records are singled out. If users choose to use a threshold, users can also render an additional table that will report any range flags that have both a low range sample size and a high relative percent difference, potentially indicating any egregious outliers due to transcription error or other human error.
+
+Finally, look at any unique variable combinations that exist in the data, but not the LUT (unique combo of table.name, siteID, measure.var, and range.division.var). Consider adding these variable combinations to the LUT to ensure you are checking ranges for all variables in the data.
+
+#### Summary, externalLabDataByAnalyte
+```{r plausible historic ranges table1}
+DT::datatable(swc12.externalLab$plausible_range_check_summary,
+              caption = glue::glue("Summary table of 'plausible_percentile_range_check' results for 'swc_externalLabDataByAnalyte' analyte records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Flags, externalLabDataByAnalyte
+```{r plausible historic ranges table2}
+if(nrow(swc12.externalLab$plausible_range_check_flags) > 0){
+  DT::datatable(swc12.externalLab$plausible_range_check_flags, 
+                caption = glue::glue("Flags table of 'plausible_percentile_range_check' results for 'swc_externalLabDataByAnalyte' analyte records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO FLAGGED RECORDS FOR RANGE CHECKS, SWC EXTERNAL LAB DATA")
+}
+```
+
+#### Outliers w/ Low n & High RPD, externalLabDataByAnalyte
+```{r plausible historic ranges table3}
+if(nrow(swc12.externalLab$plausible_range_check_all%>%dplyr::filter(rangeLookupN<rangeThreshold&rangeQF_RPD>100)) > 0){
+  DT::datatable(swc12.externalLab$plausible_range_check_all%>%dplyr::filter(rangeLookupN<rangeThreshold&rangeQF_RPD>100), 
+                caption = glue::glue("Table of outliers with n < {rangeThreshold} and RPD > 100 from 'plausible_percentile_range_check' results for 'swc_externalLabDataByAnalyte' analyte records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO OUTLIERS WITH LOW SAMPLE SIZE AND HIGH RPD FOR RANGE CHECKS, SWC EXTERNAL LAB DATA")
+}
+```
+
+#### Missing combos, externalLabDataByAnalyte
+```{r plausible historic ranges table4}
+if(nrow(swc12.externalLab$plausible_range_check_summary_extra) > 0){
+  DT::datatable(swc12.externalLab$plausible_range_check_summary_extra, 
+                caption = glue::glue("Table of missing unique variable combinations from 'plausible_percentile_range_check' results for 'swc_externalLabDataByAnalyte' analyte records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO MISSING VARIABLE COMBINATIONS FOR RANGE CHECKS, SWC EXTERNAL LAB DATA")
+}
+```
+
+### Within-group outlier checks {.tabset}
+
+::: {style="color: SlateBlue"}
+
+This is another way to look for possible outliers or suspect values in numeric data. Instead of using a LUT with defined thresholds, the function `neonOSqc::plausible_within_group()` can be used to compare measurements from multiple groupings of interest (e.g., samples from a given plot, within a given site, a specific eventID, or some combination). The function has the following features:
+
+- Any values that exceed some threshold difference from the mean or median (absolute or standard deviation) are 'flagged' and the number of suspect records is summarized
+- This plausibility check may or may not be appropriate for the monthly script, depending on the groupings being examined
+- The function is very flexible, and users can apply it as best meets their needs 
+- For more on function parameters and outputs, see `?neonOSqc::plausible_within_group`
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::plausible_within_group()** function to identify any AGW thaw depth records that are suspect compared to the central tendency values of the group. Possible outcomes if suspect records are found include:
+
+- Following up with FSci to see if there might be a data entry error 
+- Improved training and root cause analysis, and/or 
+- Adding a flag to the data (at some future time)
+
+```{r plausible_within_group}
+# AGW example
+agw13.thawDepth = neonOSqc::plausible_within_group(
+  input.df = agw_groundwaterFieldData %>% 
+    mutate(eventID = paste0(siteID,
+                            '.',
+                            substring(collectDate,1,4),
+                            substring(collectDate,6,7),
+                            substring(collectDate,9,10))), # need to create eventID
+  id.var = "eventID",
+  grouping.var1 = "siteID",
+  grouping.var2 = "locationID",
+  response.var = c(
+    "thawProbeDepth1",
+    "thawProbeDepth2",
+    "thawProbeDepth3",
+    "thawProbeDepth4",
+    "thawProbeDepth5",
+    "thawProbeDepth6",
+    "thawProbeDepth7",
+    "thawProbeDepth8",
+    "thawProbeDepth9",
+    "thawProbeDepth10"
+  ),
+  response.grouping = TRUE,
+  sd.threshold = "2",
+  diff.threshold = "0.5", 
+  compare.to = "median"
+)
+
+# Soil pH example
+sls14.pH <- neonOSqc::plausible_within_group(
+  input.df = sls_soilpH %>% 
+    dplyr::left_join(dplyr::select(sls_soilCoreCollection, sampleID, eventID),
+                     by = "sampleID"), # need to add eventID from field data
+  id.var = "sampleID",
+  grouping.var1 = "eventID",
+  grouping.var2 = "horizon",
+  response.var = c(
+    "soilInWaterpH", 
+    "soilInCaClpH"),
+  sd.threshold = "3",
+)
+```
+
+First, review the first tab for a dataset-wide summary of thaw depths. What percent of records were suspect for each unique site x location grouping? Records are flagged if values differ by more than 2x standard deviation from the mean, or if the absolute values are > 0.5 m from the mean. Next, review the second tab to examine flagged records, if any. If there there are a large number, may need to re-evaluate the criteria.
+
+#### Summary
+```{r plausible_within_group table1}
+DT::datatable(agw13.thawDepth$plausible_within_group_summary,
+              caption = glue::glue("Summary table of 'plausible_within_group' results for 'agw_groundwaterFieldData', thaw depth values - records created between {startDate_checked} and {endDate_checked}."), 
+              options = dtOptions)
+```
+
+#### Flags
+```{r plausible_within_group table2}
+
+
+if(nrow(agw13.thawDepth$plausible_within_group_flags) > 0){
+  DT::datatable(agw13.thawDepth$plausible_within_group_flags,
+                caption = glue::glue("Flags table of 'plausible_within_group' results for 'agw_groundwaterFieldData', thaw depth values - records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO FLAGGED WITHIN GROUP OUTLIERS FOR AGW THAW DEPTHS")
+}
+```
+
+
+### Consistency checks
+
+::: {style="color: SlateBlue"}
+
+Run consistency checks to identify instances where repeated measurements deviate from expectations. For numeric data, the `neonOSqc::plausible_repeat_num()` function can help identify when a measurement at timepoint 1 changed an unacceptable amount compared to the measurement at timepoint 2 (in absolute terms or as a percent) for the same individual or location (e.g., tree DBH or wetted width of a stream). For categorical data, the `neonOSqc::plausible_repeat_cat()` function can help identify when a variable changed and if it should be fixed (e.g., the sex of a small mammal should be consistent through time), or that a value changed in a non-sensical way (e.g., life status from adult to juvenile). These functions have the following features:
+
+- There is no LUT needed
+- The functions may take some time to run if very large datasets are used as inputs 
+- It is possible to use derived variables as inputs
+  - *Example*: If species richness is calculated for a plot at multiple timepoints, `neonOSqc::plausible_repeat_num` can be used to find instances of large richness changes that might indicate a data quality issue
+- These functions may or may not be appropriate for the monthly script, depending on the frequency of repeated sampling. It may be better to run this check on a longer-term version of the script
+- For more on the inputs and outputs, see `?neonOSqc::plausible_repeat_num` and `?neonOSqc::plausible_repeat_cat`
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+#### Numeric consistency {.tabset}
+
+This section uses the **`neonOSqc::plausible_repeat_num()`** function to identify suspicious changes in wetted width for REA data between consecutive bouts at the same named location. Record pairs with a difference **>= 2 meters** are flagged. These should be shared with FSci for review, in case data entry errors can be identified and corrected. It may also be possible to add some Fulcrum constraints to prevent spurious data from being ingested in the first place. In future, we may wish to add data flags to these records. 
+
+```{r plausible consistency numeric}
+# Run function, numeric data (rearation wetted width example)
+rea14 = neonOSqc::plausible_repeat_num(
+  input.df = rea_widthFieldData_noDups,
+  grouping.var = "siteWidth",
+  response.var = "wettedWidth",
+  date.var = "collectDate",
+  threshold = 2,
+  threshold.type = 'raw',
+  threshold.direction = 'abs')
+```
+
+Examine outputs. Check the first tab for the dataset-wide summary, how many comparisons per site were flagged? Next, view the second tab for all flagged comparisons.
+
+##### Summary
+```{r plausible consistency numeric table1}
+
+DT::datatable(rea14$plausible_repeat_num_summary,
+              caption = glue::glue("Summary table of 'plausible_repeat_num' results for 'rea_widthFieldData', wetted width values - records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags
+```{r plausible consistency numeric table2}
+if(nrow(rea14$plausible_repeat_num_flags) > 0){
+  DT::datatable(rea14$plausible_repeat_num_flags,
+                caption = glue::glue("Flags table of 'plausible_repeat_num' results for 'rea_widthFieldData', wetted width values - records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO FLAGGED COMPARISONS FOR WETTED WIDTH")
+}
+```
+
+
+#### Categorical consistency {.tabset}
+
+This section uses the **`neonOSqc::plausible_repeat_cat()`** function to identify cases in MAM data where the sex of a mammal changed in consecutive captures. Examine which sites and species this tends to happen with and share findings with FSci for discussion and possible training enhancements. In the future, we may want to flag these records as 'sex uncertain' or similar, discuss possible approaches with the TWG.
+
+```{r plausible consistency categorical}
+# Run function, categorical data (small mammals example)
+mam15 = neonOSqc::plausible_repeat_cat(
+  input.df = mam_pertrapnight_noDups,
+  grouping.var = "tagID",
+  response.var = "sex",
+  date.var = "collectDate",
+  change.type = "any")
+```
+
+Examine outputs. Check the first tab for the dataset-wide summary, what percent of repeat measures per site had a change of sex? Next, view the second tab for all flagged comparisons.
+
+##### Summary
+```{r plausible consistency categorical table1}
+DT::datatable(mam15$plausible_repeat_cat_summary,
+              caption = glue::glue("Summary table of 'plausible_repeat_cat' results for 'mam_pertrapnight', mammal sex values - records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags
+```{r plausible consistency categorical table2}
+if(nrow(mam15$plausible_repeat_cat_flags) > 0){
+  DT::datatable(mam15$plausible_repeat_cat_flags,
+                caption = glue::glue("Fags table of 'plausible_repeat_cat' results for 'mam_pertrapnight', mammal sex values - records created between {startDate_checked} and {endDate_checked}."),
+                options = dtOptions)
+} else {
+  print("NO FLAGGED COMPARISONS FOR MAMMAL SEX")
+}
+```
+
+
+### Taxonomy checks  {.tabset}
+
+::: {style="color: SlateBlue"}
+
+Run taxonomy checks for data products that include taxonomic information to determine three different taxonomy-related metrics: 1) taxonomic richness over time, 2) taxonomic accumulation over time, and 3) rank abundance curves. Each of these metrics can be reported on a per-site level. The function developed for these checks is `neonOSqc::plausible_biodiv_rank()`. The function has the following features:
+
+- The function does not require module-specific LUTs
+- Any combination of the three metrics may be selected for calculation, but some metrics may not be possible to calculate for all data products (e.g. rank abundance cannot be calculated for data products that do not record abundance)
+- This check is likely most appropriate for inclusion in the annual summary script, given the delay between sample collection and taxonomic identification for many data products. It may be run monthly, but data from any bouts that are in progress or have samples still being ID'd should be interpreted with caution
+- For more on function options and specifics of inputs and outputs, see `?neonOSqc::plausible_biodiv_rank`
+  - There is also a tutorial for this type of work, see the `neonOSqc` package Readme for details
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+This section uses the **`neonOSqc::plausible_biodiv_rank()`** function to generate summary plots and tables for INV biodiversity metrics. The goal is to get a high-level look into patterns of richness/taxon rank/rank abundance, and to see if any sites have patterns that look suspect or anomalous. [Since there are no flags, add more here on what kinds of patterns are expected vs would cause suspicion, and what you might do about this].
+
+```{r plausible biodiversity}
+# Create aquatic invertebrates input dataset
+inv_taxonomyProcessed_join <- inv_taxonomyProcessed %>%
+  dplyr::left_join(dplyr::select(inv_fieldData, sampleID, benthicArea), 
+                   by = "sampleID") %>%
+  dplyr::mutate(countPerM2 = estimatedTotalCount / benthicArea)
+# Fun function
+inv17 <-
+  neonOSqc::plausible_biodiv_rank(
+    input.df = inv_taxonomyProcessed_join,
+    facet.by = "siteID",
+    color.by = "domainID",
+    date.var = "collectDate",
+    plot.tax.richness = TRUE,
+    plot.tax.accum = TRUE,
+    plot.rank.abund = TRUE,
+    rank.abund.scaling = "all",
+    plot.type = "both",
+    pres.abs.col = "targetTaxaPresent",
+    abund.col = "countPerM2",
+    taxon.rank = c("species", "genus", "family"),
+    taxon.ID.col = "scientificName"
+  ) 
+```
+
+View the key outputs, including figures and tables. The first tab displays...The second tab displays...[give more context here as appropriate, depending on which tables are examined].  
+
+The third tab shows a figure...and the fourth tab...[explain what you are looking for when examining these plots].
+
+
+#### Table X
+```{r plausible biodiversity table 1}
+# Number of records per site per year at the species level:
+DT::datatable(inv17$plausible.biodiv.table.num.records.year.aggregate.taxon.level.species,
+              caption = glue::glue("Table output from 'plausible_biodiv_rank' for 'inv_taxonomyProcessed', number of records at the species level - records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Table XX
+```{r plausible biodiversity table 2}
+# Taxon richness per site per year at the species level:
+
+DT::datatable(inv17$plausible.biodiv.table.taxon.richness.year.aggregate.taxon.level.species,
+              caption = glue::glue("Table output from 'plausible_biodiv_rank' for 'inv_taxonomyProcessed', species taxon richness - records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+#### Figure X
+```{r plausible biodiversity figure 1}
+# Richness and Taxon accumulation at the genus level
+inv17$plausible.biodiv.figure.taxon.richness.year.aggregate.taxon.level.genus.facet.interactive
+```
+
+#### Figure XX
+```{r plausible biodiversity figure 2}
+inv17$plausible.biodiv.figure.taxon.accumulation.curve.taxon.level.genus.facet.static
+```
+
+
+### DP-specific plausibility checks
+
+::: {style="color: SlateBlue"}
+
+Add any additional code needed to conduct DP-specific checks related to plausibility. IF NONE ARE NEEDED, DELETE THIS SECTION. Make a subsection (####) with appropriate commentary for what is being checked, what results mean and how to follow up for each unique custom test that is needed.
+
+Whenever possible, run custom code outputs through the `neonOSqc::format_custom_outputs()` function, which will produce an output list standardized to match the other generic `neonOSqc` functions. This is important so that results of custom tests can be summarized and aggregated for reporting purposes. The function requires:
+
+- A single data frame (`input.df`) that is the endpoint of a custom chunk of code. The data frame must contain a variable in which flags are recorded (`id.var`). Flags must be either a character or numeric string, and non-flagged records must contain 'NA' in the `id.var`. 
+- A string (`custom.function.name`) that is equivalent to the 'functionName' of other generic `neonOSqc` functions, 'custom' will be added to the front of it. For example, if `custom.function.name` = 'plausible_filter_match', the output summary table will be titled 'custom_plausible_filter_match_summary'.
+
+For more on the inputs and outputs, see `?neonOSqc::format_custom_outputs`. This function is relevant for any custom-coded annual or monthly check, and should be used for all custom-coded QAQC checks that produce data frames containing a 'flag' variable.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+#### Check for sampleVolumerFiltered match across tables {.tabset}
+
+This section uses the **`neonOSqc::format_custom_outputs()`** function to ensure that 'volume filtered' recorded in lab data is equivalent to that used in external lab data to calculate concentrations of particulate carbon and nitrogen. Flagged records most likely indicate a transcription error in either the field or external lab data. Failures in this check can have significant impact on the concentrations of particulate carbon and nitrogen data - investigate each failure immediately.
+
+```{r plaus.DP.specific}
+# Add code chunks as needed, there may be more than one as plausibility can be quite DP specific. If not needed, delete this chunk.
+
+# ASI - Check that volumes for a sample match between the field and lab data
+asi_fieldData_longVol <- asi_fieldData %>%
+  pivot_longer(c(isotopePOMSampleID,isotopePOMRep2SampleID),names_to="variableName",values_to="variableValue") %>%
+  mutate(sampleVolumeFiltered=NA)
+
+asi_fieldData_longVol$sampleVolumeFiltered[asi_fieldData_longVol$variableName=="isotopePOMSampleID"] <- asi_fieldData_longVol$sampleVolumeFilteredPOMRep1[asi_fieldData_longVol$variableName=="isotopePOMSampleID"]
+
+asi_fieldData_longVol$sampleVolumeFiltered[asi_fieldData_longVol$variableName=="isotopePOMRep2SampleID"] <- asi_fieldData_longVol$sampleVolumeFilteredPOMRep2[asi_fieldData_longVol$variableName=="isotopePOMRep2SampleID"]
+
+asi_fieldData_longVol <- asi_fieldData_longVol%>%
+  filter(!is.na(sampleVolumeFiltered))
+
+asi_POMExternalLabDataPerSample_longVol <- asi_POMExternalLabDataPerSample %>%
+  mutate(fieldVol=NA)
+
+for(i in 1:nrow(asi_POMExternalLabDataPerSample_longVol)){
+  asi_POMExternalLabDataPerSample_longVol$fieldVol[i] <- asi_fieldData_longVol$sampleVolumeFiltered[asi_fieldData_longVol$variableValue==asi_POMExternalLabDataPerSample_longVol$sampleID[i]]
+}
+
+asi_plausible.consistency.check <- asi_POMExternalLabDataPerSample_longVol%>%
+  select(dpID,dpName,tableName,domainID,siteID,namedLocation,collectDate,sampleID,sampleVolumeFiltered,analyte,fieldVol)%>%
+  mutate(consistencyQF=NA,
+         minCheckedDate=startDate_checked,
+         maxCheckedDate=endDate_checked,
+         reportDate=Sys.Date())
+
+# There are actually not a lot of flags in this check (thank goodness!), so let's manipulate the data so users can see how the function should work
+asi_plausible.consistency.check$sampleVolumeFiltered[c(1:25,100:125,200:225)] <- 10000
+
+# Assign a flag
+asi_plausible.consistency.check$consistencyQF[asi_plausible.consistency.check$sampleVolumeFiltered!=asi_plausible.consistency.check$fieldVol] <- "flag"
+
+# Run the function to format_custom_outputs
+asigsi10 <-
+  format_custom_outputs(
+    input.df = asi_plausible.consistency.check,
+    id.var = "consistencyQF",
+    custom.function.name = "plausible_filter_match",
+    dataSubset = "POM_fieldLabFilterMatch"
+  )
+```
+
+##### Summary
+```{r custom plausibility summary table}
+DT::datatable(asigsi10$custom_plausible_filter_match_summary,
+              caption = glue::glue("Summary table of 'custom_plausible_filter_match' results for asi_fieldData and asi_POMExternalLabDataPerSample - records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+```
+
+##### Flags
+```{r custom plausibility flags}
+if (nrow(asigsi10$custom_plausible_filter_match_flags)>0) {
+  DT::datatable(asigsi10$custom_plausible_filter_match_flag,
+                caption = glue::glue("Flags table of 'custom_plausible_filter_match' results for asi_fieldData and asi_POMExternalLabDataPerSample - records created between {startDate_checked} and {endDate_checked}."),
+              options = dtOptions)
+}else{
+  print("NO SAMPLE VOLUME CROSS-TABLE ISSUES")
+}
+```
+
+
+## Outputs
+
+::: {style="color: SlateBlue"}
+
+To take a closer look at the outputs of data quality code, tables of flagged records created by this script are output to a Box directory. If the data were loaded directly to R and not imported from a previous download, ensure the code below also saves those data to the appropriate Box folder. Make sure you've created a Box folder for your module, and change the example code below to reference your specific mod_ and named lists, as well as the path to Box in the load data chunk. Otherwise the code will run without much customization.
+
+ONCE A CUSTOM SCRIPT IS DEVELOPED, THE TEXT IN THIS SECTION ABOVE THIS LINE CAN BE DELETED.
+
+:::
+
+All data and outputs are stored in a Box folder for traceability and follow up:  
+
+- Box/osQCOutputs/[replace with name of your mod/folder]
+
+```{r exporting tables, results = F, warning = F}
+# create empty folder for the range of input data used for this instance of the report. Replace 'template' with your module
+dir.create(paste0(boxDir,'/osQCOutputs/template/', startDate_checked, "_", endDate_checked))
+# create subfolder for outputs - everyone should do this
+dir.create(paste0(boxDir,'/osQCOutputs/template/', startDate_checked, "_", endDate_checked, '/outputs'))
+# create subfolder for data if code loaded it directly, if not can skip
+dir.create(paste0(boxDir,'/osQCOutputs/template/', startDate_checked, "_", endDate_checked, '/data'))
+
+# get names of all the lists and dataframes in the environment
+listlist <- Filter(function(x) is.list(get(x)), ls())
+
+# exclude those associated with the input data used (customize for your data/module), along with any other lists or dataframes that you don't need as outputs
+listOuts <- grep(listlist, pattern = 'agw_|agwData|asi_|surfaceWaterIsotopes|bbc_|roots|cfc_|canopyFoliage|inv_|inverts|mam_|mammals|ntr_|rea_|rearation|scs|sls_|soil|swc_|surfaceWaterChem|validation|variables|readme|categoricalCodes|issueLog|dtOptions', invert=T, value = T)
+
+# Loop through each list to unpack all the objects within, assign them a unique name (listname_tablename) and add dataframe to the environment
+for (i in 1:length(listOuts)) {
+  currList <- get(listOuts[i])
+  for (j in 1:length(currList)) {
+    assign(paste(listOuts[i],names(currList)[j],sep = "_"),currList[[j]])
+  }
+}
+
+# get names of all data frames now in the environment
+dflist <- Filter(function(x) is.data.frame(get(x)), ls())
+# exclude those associated with the input data used (customize for your data/module), plus another other dataframes that you don't need as outputs
+dfOuts <- grep(dflist, pattern = 'currList|agw_|asi_|bbc_|cfc_|inv_|mam_|ntr_|rea_|scs|sls_|swc_|validation|variables|readme|categoricalCodes|issueLog', invert=T, value = T)
+
+# wrap output DFs into a mega-list for export
+dfs <- mget(dfOuts) # includes their content
+
+# remove tables that don't have any rows, mostly relevant to empty 'flags' outputs
+dfs <- dfs[sapply(dfs, nrow) > 0]
+
+# Export tables as .csv
+
+# OUTPUTS
+for (i in 1:length(dfs)){
+  write.csv(dfs[[i]], 
+            paste0(boxDir,
+                   '/osQCOutputs/template/', 
+                   startDate_checked, "_", endDate_checked,
+                   '/outputs/', 
+                   names(dfs[i]), 
+                   ".csv"), 
+            row.names = F)
+}
+
+# DATA
+for (i in 1:length(surfaceWaterIsotopes)){
+  write.csv(surfaceWaterIsotopes[[i]], 
+            paste0(boxDir,
+                   '/osQCOutputs/template/', 
+                   startDate_checked, "_", endDate_checked,
+                   '/data/', 
+                   names(surfaceWaterIsotopes[i]),
+                   ".csv"), 
+            row.names = F)
+}
+
+for (i in 1:length(roots)){
+  write.csv(roots[[i]], 
+            paste0(boxDir,
+                   '/osQCOutputs/template/',
+                   startDate_checked, "_", endDate_checked,
+                   '/data/', 
+                   names(roots[i]),
+                   ".csv"), 
+            row.names = F)
+}
+
+for (i in 1:length(canopyFoliage)){
+  write.csv(canopyFoliage[[i]], 
+            paste0(boxDir,
+                   '/osQCOutputs/template/',
+                   startDate_checked, "_", endDate_checked,
+                   '/data/',
+                   names(canopyFoliage[i]),
+                   ".csv"), 
+            row.names = F)
+}
+
+for (i in 1:length(inverts)){
+  write.csv(inverts[[i]], 
+            paste0(boxDir,
+                   '/osQCOutputs/template/', 
+                   startDate_checked, "_", endDate_checked,
+                   '/data/', 
+                   names(inverts[i]), 
+                   ".csv"), 
+            row.names = F)
+}
+
+for (i in 1:length(mammals)){
+  write.csv(mammals[[i]], 
+            paste0(boxDir,
+                   '/osQCOutputs/template/',
+                   startDate_checked, "_", endDate_checked,
+                   '/data/', 
+                   names(mammals[i]),
+                   ".csv"), 
+            row.names = F)
+}
+
+for (i in 1:length(rearation)){
+  write.csv(rearation[[i]], 
+            paste0(boxDir,
+                   '/osQCOutputs/template/', 
+                   startDate_checked, "_", endDate_checked,
+                   '/data/',
+                   names(rearation[i]),
+                   ".csv"), 
+            row.names = F)
+}
+
+for (i in 1:length(soil)){
+  write.csv(soil[[i]], 
+            paste0(boxDir,
+                   '/osQCOutputs/template/',
+                   startDate_checked, "_", endDate_checked,
+                   '/data/',
+                   names(soil[i]),
+                   ".csv"), 
+            row.names = F)
+}
+
+for (i in 1:length(surfaceWaterChem)){
+  write.csv(surfaceWaterChem[[i]], 
+            paste0(boxDir,
+                   '/osQCOutputs/template/',
+                   startDate_checked, "_", endDate_checked,
+                   '/data/', 
+                   names(surfaceWaterChem[i]), 
+                   ".csv"), 
+            row.names = F)
+}
+```

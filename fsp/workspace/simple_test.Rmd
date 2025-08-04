@@ -1,0 +1,18 @@
+---
+title: "Simple Test"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = T, echo = F, message = F)
+```
+
+```{r test_params, results = F}
+# Test if params works
+print("Testing params access...")
+print(paste("Title Date:", params$titleDate))
+print(paste("Start Month:", params$startMonth))
+print(paste("End Month:", params$endMonth))
+```
+
+This is a simple test. 
