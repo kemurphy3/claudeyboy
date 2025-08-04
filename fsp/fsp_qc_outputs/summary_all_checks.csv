@@ -1,0 +1,16 @@
+"Category","Check_Number","Check","Implementation","Issues_Found"
+"Duplicates",10,"Bout metadata duplicates (eventID)","Correct",1
+"Duplicates",11,"Sample metadata duplicates (spectralSampleID)","Correct",0
+"Duplicates",12,"Spectral data duplicates (spectralSampleID)","Correct",0
+"Completeness",1,"Bout completeness (eventID to boutID)","Correct",0
+"Completeness",2,"CFC sample matching (sampleID)","Correct",20
+"Completeness",3,"Sample count per eventID (min 1)","Correct",0
+"Completeness",4,"Bout metadata required fields","Needs validation rules",NA
+"Completeness",5,"Sample metadata required fields","Needs validation rules",NA
+"Completeness",6,"Spectral data required fields","Needs validation rules",NA
+"Completeness",7,"Band count (ratio 25-26)","Correct",0
+"Timeliness",8,"FSP-CFC timing (31 days)","Correct",0
+"Timeliness",9,"FSP bout duration (max 30 days)","Correct",0
+"Plausibility",13,"Reflectance range (0-1) in CSV","Correct",0
+"Plausibility",14,"Wavelength range (300-2600) in CSV","Correct",0
+"Plausibility",15,"Spectral ratio (995-1005 > 495-505)","Correct",0
