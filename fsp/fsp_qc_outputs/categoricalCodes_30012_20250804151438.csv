@@ -1,0 +1,61 @@
+"name","pubCode","description","startDate","endDate"
+"cfc.plantStatus","OK","Any individual or assemblage that is of typical mature, healthy, peak-green status for the ecosystem in question at the time of sampling",2012-01-01,2019-01-01
+"cfc.plantStatus","Insect damaged","Visible damage caused by insects; type noted in remarks if possible (e.g., mountain pine beetle, gypsy moth, etc.)",2012-01-01,2019-01-01
+"cfc.plantStatus","Disease damaged","Visible damage cause by disease; type noted in remarks if possible (e.g., Blister Rust, rot, canker, etc.)",2012-01-01,2019-01-01
+"cfc.plantStatus","Physically damaged","Visible damage caused by a physical processes; details noted in remarks if possible (e.g., broken stem, snow/ice damage, crushed, struck by lightning, bole scorch, etc.)",2012-01-01,2019-01-01
+"cfc.plantStatus","Other damage","Visible damage of unknown origin; details noted in remarks if possible",2012-01-01,2019-01-01
+"cfc.plantStatus","OK","Any individual or assemblage that is of typical mature, healthy, peak-green status for the ecosystem in question at the time of sampling",2018-01-01,NA
+"cfc.plantStatus","Insect damaged","Visible damage caused by insects; type noted in remarks if possible (e.g., mountain pine beetle, gypsy moth, etc.)",2018-01-01,NA
+"cfc.plantStatus","Disease damaged","Visible damage cause by disease; type noted in remarks if possible (e.g., Blister Rust, rot, canker, etc.)",2018-01-01,NA
+"cfc.plantStatus","Physically damaged","Visible damage caused by a physical processes; details noted in remarks if possible (e.g., broken stem, snow/ice damage, crushed, struck by lightning, bole scorch, etc.)",2018-01-01,NA
+"cfc.plantStatus","Other damage","Visible damage of unknown origin; details noted in remarks if possible",2018-01-01,NA
+"cfc.plantStatus","Leaves not fully expanded","Leaves not yet mature, individual or assemblage likely sampled early in the season or following a disturbance (e.g., fire)",2018-01-01,NA
+"cfc.plantStatus","Leaves beginning to senesce","Leaves beginning to senesce, individual or assemblage likely sampled outside of peak green conditions or stressed (e.g., drought, heat, etc.)",2018-01-01,NA
+"cfc.plantStatus","Most leaves senesced","Most leaves senesced, individual or assemblage likely sampled outside of peak green conditions",2018-01-01,NA
+"fsp.fieldSpectrometerSettings","Bare Fiber","Bare Fiber software settings used with the field spectrometer",2012-01-01,NA
+"fsp.fieldSpectrometerSettings","8 Degree","8 Degree software settings used with the field spectrometer",2012-01-01,NA
+"fsp.foreopticConnection","Leaf Clip","Leaf clip plant probe houses spectrometer fiber optic",2012-01-01,NA
+"fsp.foreopticConnection","Pistol Grip","Pistol grip houses spectrometer fiber optic",2012-01-01,NA
+"fsp.foreopticType","Bare Fiber","No lens used with the fiber optic cable of the spectrometer",2012-01-01,NA
+"fsp.foreopticType","8 Degree Lens","8 degree lens used with the fiber optic cable of the spectrometer",2012-01-01,NA
+"fsp.instrument","ASD FieldSpec 3 Serial No 16427","ASD FieldSpec 3 Serial No 16427 spectrometer used to take field spectral measurements",2012-01-01,NA
+"fsp.instrument","other","Other spectrometer used to take field spectral measurements",2012-01-01,NA
+"fsp.leafAge","immature","Measured foliage was immature",2012-01-01,NA
+"fsp.leafAge","mature","Measured foliage was mature",2012-01-01,NA
+"fsp.leafArrangement","single leaf","Single leaf measured",2012-01-01,NA
+"fsp.leafArrangement","multiple overlapping leaves","Multiple, small overlapping leaves measured",2012-01-01,NA
+"fsp.leafArrangement","horizontal needle mat","Horizontal mat of needles measured",2012-01-01,NA
+"fsp.leafArrangement","chevron needle mat","Chevron mat composed of small needles measured",2012-01-01,NA
+"fsp.leafArrangement","other","Other arrangement of foliage measured",2012-01-01,NA
+"fsp.leafExposure","sunlit","Measured foliage came from a sun-lit section of the canopy",2012-01-01,NA
+"fsp.leafExposure","part-sun","Measured foliage came from a partially sun-lit section of the canopy",2012-01-01,NA
+"fsp.leafExposure","shaded","Measured foliage came from a shaded section of the canopy",2012-01-01,NA
+"fsp.leafSamplePosition","top","Measured foliage taken from the top of the individual",2012-01-01,NA
+"fsp.leafSamplePosition","middle","Measured foliage taken from the middle of the individual",2012-01-01,NA
+"fsp.leafSamplePosition","bottom","Measured foliage taken from the bottom of the individual",2012-01-01,NA
+"fsp.leafStatus","healthy","Measured foliage was healthy, no issues to report",2012-01-01,NA
+"fsp.leafStatus","diseased","Measured foliage was diseased",2012-01-01,NA
+"fsp.leafStatus","damaged","Measured foliage was damaged",2012-01-01,NA
+"fsp.leafStatus","senescing","Measured foliage was senescing",2012-01-01,NA
+"fsp.leafStatus","other","Measured foliage had another issue, described in remarks",2012-01-01,NA
+"fsp.lightSource","sun","Light source from the sun",2012-01-01,NA
+"fsp.lightSource","lamp","Light source from the spectrometer lamp",2012-01-01,NA
+"fsp.measurementQuantity","Raw Digital Number","Raw digital number collected from the spectrometer",2012-01-01,NA
+"fsp.measurementQuantity","other","other measurement quantity",2012-01-01,NA
+"fsp.measurementUnits","DN","Digital Number (DN)",2012-01-01,NA
+"fsp.measurementUnits","other","Other measurement unit",2012-01-01,NA
+"fsp.measurementVenue","outdoor","Measurement made outdoors",2012-01-01,NA
+"fsp.measurementVenue","laboratory","Measurement made in the laboratory",2012-01-01,NA
+"fsp.measurementVenue","other","Measurement made in other location, described in remarks",2012-01-01,NA
+"fsp.sampleTypeBout","Leaf","Leaf sample",2012-01-01,NA
+"fsp.sampleTypeBout","Clip","Transect clip strip sample",2012-01-01,NA
+"fsp.sampleTypeCollect","Individual","Leaf sample",2012-01-01,NA
+"fsp.sampleTypeCollect","Clip","Transect clip strip sample",2012-01-01,NA
+"fsp.samplingProtocolVersion","NEON.DOC.005214vA","Operational protocol version A used to collect field spectral measurements",2012-01-01,NA
+"fsp.samplingProtocolVersion","NEON.DOC.001298","Legacy protocol version used to collect field spectral measurements",2012-01-01,NA
+"fsp.targetStatus","fresh","Measurment made on fresh, whole, field-moist tissue",2012-01-01,NA
+"fsp.targetStatus","dried and ground","Measurment made on dried and ground tissue",2012-01-01,NA
+"fsp.targetType","pure foliage","Measurement made on pure foliage",2012-01-01,NA
+"fsp.targetType","foliage plus stem","Measurement made on foliage plus stem or woody material",2012-01-01,NA
+"Yes or No choice","Y","Yes",2012-01-01,NA
+"Yes or No choice","N","No",2012-01-01,NA

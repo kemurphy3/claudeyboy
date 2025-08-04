@@ -1,0 +1,665 @@
+"name","pubCode","description","startDate","endDate"
+"bbc.subplotID","31_400","subplotID 31_400",2012-01-01,NA
+"bbc.subplotID","21_400","subplotID 21_400",2012-01-01,NA
+"bbc.subplotID","23_400","subplotID 23_400",2012-01-01,NA
+"bbc.subplotID","39_400","subplotID 39_400",2012-01-01,NA
+"bbc.subplotID","41_400","subplotID 41_400",2012-01-01,NA
+"bgc.analyte","d15N","Ratio of 15N:14N in a sample relative to atmospheric N2",2012-01-01,NA
+"bgc.analyte","d13C","Ratio of 13C:12C in a sample relative to VPDB",2012-01-01,NA
+"bgc.analyte","carbonPercent","Percent carbon in a sample on a dry weight basis",2012-01-01,NA
+"bgc.analyte","nitrogenPercent","Percent nitrogen in a sample on a dry weight basis",2012-01-01,NA
+"bgc.analyte","CNratio","Ratio of carbon to nitrogen concentration in a sample on a dry weight basis",2012-01-01,NA
+"bgc.analyteUnits","permill","Indicator that the units are permill",2012-01-01,NA
+"bgc.analyteUnits","percent","Indicator that the units are percent",2012-01-01,NA
+"bgc.cnIsotopeQF","OK","both d15N and d13C values are ok, no issues",2012-01-01,NA
+"bgc.cnIsotopeQF","sample d15N out of qaqc tolerance","d15N value is out of laboratory qaqc tolerance, use with caution",2012-01-01,NA
+"bgc.cnIsotopeQF","sample d13C out of qaqc tolerance","d13C value is out of laboratory qaqc tolerance, use with caution",2012-01-01,NA
+"bgc.cnIsotopeQF","sample d15N and d13C out of qaqc tolerance","both d15N and d13C values are out of laboratory qaqc tolerance, use with caution",2012-01-01,NA
+"bgc.cnPercentQF","OK","both percent nitrogen and percent carbon data are ok, no issues",2012-01-01,NA
+"bgc.cnPercentQF","sample percent N out of qaqc tolerance","percent nitrogen is out of laboratory qaqc tolerance, use with caution",2012-01-01,NA
+"bgc.cnPercentQF","sample percent C out of qaqc tolerance","percent carbon is out of laboratory qaqc tolerance, use with caution",2012-01-01,NA
+"bgc.cnPercentQF","sample percent N and C out of qaqc tolerance","both percent nitrogen and percent carbon are out of laboratory qaqc tolerance, use with caution",2012-01-01,NA
+"bgc.isotopeAccuracyQF","OK","observed values of run QA material fall within acceptance criteria for stable isotopes",2012-01-01,NA
+"bgc.isotopeAccuracyQF","d15N run QA criteria not met","observed values of run QA material do not meet acceptance criteria for d15N",2012-01-01,NA
+"bgc.isotopeAccuracyQF","d13C run QA criteria not met","observed values of run QA material do not meet acceptance criteria for d13C",2012-01-01,NA
+"bgc.isotopeAccuracyQF","d15N and d13C run QA criteria not met","observed values of run QA material do not meet acceptance criteria for d15N or d13C",2012-01-01,NA
+"bgc.percentAccuracyQF","OK","observed values of run QA material fall within acceptance criteria for percent concentration",2012-01-01,NA
+"bgc.percentAccuracyQF","percent N run QA criteria not met","observed values of run QA material do not meet acceptance criteria for percent nitrogen",2012-01-01,NA
+"bgc.percentAccuracyQF","percent C run QA criteria not met","observed values of run QA material do not meet acceptance criteria for percent carbon",2012-01-01,NA
+"bgc.percentAccuracyQF","percent C and N run QA criteria not met","observed values of run QA material do not meet acceptance criteria for percent nitrogen or carbon",2012-01-01,NA
+"bgc.sampleType","vegetation","Indicator that vegetation is being measured",2012-01-01,NA
+"bgc.sampleType","soil","Indicator that soil is being measured",2012-01-01,NA
+"biophysicalCriteria","OK - no known exceptions","Sampling occurred on schedule, no known issues",2012-01-01,NA
+"biophysicalCriteria","OK - schedule change but conditions met","Sampling occurred not within defined sampling window but reflects the target biophysical conditions",2012-01-01,NA
+"biophysicalCriteria","conditions not met","Sampling does not reflect the target biophysical conditions",2012-01-01,NA
+"biophysicalCriteria","other","Other potential sample timing inconsistencies described in the remarks",2012-01-01,NA
+"biophysicalCriteria","conditions not met: most plants senesced","Sampling does not reflect the target biophysical conditions, most plants senesced",2012-01-01,NA
+"biophysicalCriteria","conditions not met: most plants not yet flowering","Sampling does not reflect the target biophysical conditions, most plants not yet in flower",2012-01-01,NA
+"biophysicalCriteria","unknown - logistical","Sampling not possible due to logistical considerations",2012-01-01,NA
+"biophysicalCriteria","drought conditions","Sampling does not reflect the target biophysical conditions, abundance and composition of flora is drought compromised",2012-01-01,NA
+"biophysicalCriteria","conditions not met: drought conditions","Sampling does not reflect the target biophysical conditions, abundance and composition of flora is drought compromised",2012-01-01,NA
+"biophysicalCriteria","conditions not met - no photo taken","Conditions at photo point do not support image collection (e.g., localized flooding)",2012-01-01,NA
+"biophysicalCriteria","date outside peak green","Sample collected outside of prescribed peak green window",2012-01-01,NA
+"biophysicalCriteria","conditions not met: sampled after fish","Sampling does not reflect the target biophysical conditions, benthic sampling occurred after benthos was disturbed during seasonal fish sampling",2012-01-01,NA
+"biophysicalCriteria","conditions not met: outside bout window","Sampling or data collection does not reflect the target biophysical conditions that indicate seasonality, including temperature, flow regime, and riparian greenness",2012-01-01,NA
+"biophysicalCriteria","Qualifying material < 50% of plot area, sampling criteria not met","Herbaceous vegetation at the plot is not of sufficient cover to merit sampling",2012-01-01,NA
+"biophysicalCriteria","plot disturbance","Sampling occurred and there is evidence the plot was disturbed after the prior sampling event, specific disturbance described in remarks",2012-01-01,NA
+"biophysicalCriteria","OK - within bout window","Sampling or data collection reflects the target biophysical conditions that indicate seasonality, including temperature, flow regime, and riparian greenness",2012-01-01,NA
+"biophysicalCriteria","Recent burn – herbaceous cover impacted","Sampling occurred following a recent fire that likely impacts masses",2012-01-01,NA
+"biophysicalCriteria","Exclosures deployed after livestock present","Exclosures designed to facilitate understanding of biomass production in grazed systems were not deployed prior to presence of domestic herbivores",2012-01-01,NA
+"cfc.bgcSampleCondition","OK","Sample condition ok",2012-01-01,NA
+"cfc.bgcSampleCondition","oven temperature out of range","Oven temperature used for sample processing out of range specified in protocol",2012-01-01,NA
+"cfc.bgcSampleCondition","samples held longer than 5 days before processing","Samples held longer than 5 days before processing began, deviation from protocol",2012-01-01,NA
+"cfc.bgcSampleCondition","samples experienced freeze-thaw","Samples were accidentally frozen for a period, then thawed, prior to processing",2012-01-01,NA
+"cfc.bgcSampleCondition","samples discarded, not analyzed","Samples were discarded and not processed or analyzed for chemistry",2012-01-01,NA
+"cfc.bgcSampleCondition","other","Other (specified in remarks)",2012-01-01,NA
+"cfc.canopyStatus","true canopy","Individual is part of the canopy, crown height is similar to neighboring sunlit plants",2019-12-01,NA
+"cfc.canopyStatus","sunlit gap","Individual is not part of the canopy, sample is only sunlit because it is found in a gap and neighboring sunlit plants are significantly taller",2019-12-01,NA
+"cfc.chlAbsorbanceQF","OK","no issues to report",2012-01-01,NA
+"cfc.chlAbsorbanceQF","criteria not met","observed values for spectrometer absorbance standard analyzed along with samples did not meet acceptance criteria",2012-01-01,NA
+"cfc.chlAbsorbanceQF","not available","spectrometer absorbance standard not analyzed",2012-01-01,NA
+"cfc.chlAnalyte","chlorophyll A","chlorophyll A",2012-01-01,NA
+"cfc.chlAnalyte","chlorophyll B","chlorophyll B",2012-01-01,NA
+"cfc.chlAnalyte","carotenoids","carotenoids",2012-01-01,NA
+"cfc.chlAnalyte","turbidity","turbidity",2012-01-01,NA
+"cfc.chlAnalyteUnits","ug chlorophyll per mL","ug chlorophyll per mL",2012-01-01,NA
+"cfc.chlAnalyteUnits","mg chlorophyll per gram","mg chlorophyll per gram",2012-01-01,NA
+"cfc.chlFieldSampleCondition","OK","Sample condition ok",2012-01-01,NA
+"cfc.chlFieldSampleCondition","flash freeze method deviation","Method for flash freezing tissue deviated from protocol",2012-01-01,NA
+"cfc.chlFieldSampleCondition","cold chain broken","Cold chain broken",2012-01-01,NA
+"cfc.chlFieldSampleCondition","subsample not created","Subsample not created, no chlorophyll data expected",2012-01-01,NA
+"cfc.chlFieldSampleCondition","other","Other (specified in remarks)",2012-01-01,NA
+"cfc.chlHandlingQF","OK","no issues to report",2012-01-01,NA
+"cfc.chlHandlingQF","standard holding time exceeded","sample was not processed within the planned holding time of 14 days from collection",2012-01-01,NA
+"cfc.chlHandlingQF","standard extraction time exceeded","sample was extracted for longer than the planned maximum duration of 48 hours",2012-01-01,NA
+"cfc.chlHandlingQF","standard extraction and holding times exceeded","sample was not processed within the planned holding time of 14 days from collection and was extracted for longer than the planned maximum duration of 48 hours",2012-01-01,NA
+"cfc.chlHandlingQF","sample held at -20 C instead of ultracold","sample was stored in a standard -20 C freezer instead of at ultracold temps (-60 to -80 C) upon receipt at the external lab",2012-01-01,NA
+"cfc.chlMeasurementQF","OK","sample measurement ok, no issues to report",2012-01-01,NA
+"cfc.chlMeasurementQF","absorbance value below optimal range","absorbance value below 0.2, the reported optimal range for this method",2012-01-01,NA
+"cfc.chlMeasurementQF","absorbance value above optimal range","absorbance value above 0.9, the reported optimal range for this method",2012-01-01,NA
+"cfc.chlMeasurementQF","other","other measurement issue, explained in remarks",2012-01-01,NA
+"cfc.chlQAQF","OK","no issues to report",2012-01-01,NA
+"cfc.chlQAQF","criteria not met","observed values for chlorophyll quality assurance material analyzed along with samples did not meet acceptance criteria",2012-01-01,NA
+"cfc.chlQAQF","not available","chlorophyll quality assurance material not analyzed",2012-01-01,NA
+"cfc.chlRelativeAccuracyScale","A","observed value of run QA material(s) within 0-5% of known value",2012-01-01,NA
+"cfc.chlRelativeAccuracyScale","B","observed value of run QA material(s) within 5-10% of known value",2012-01-01,NA
+"cfc.chlRelativeAccuracyScale","C","observed value of run QA material(s) within 10-20% of known value",2012-01-01,NA
+"cfc.chlRelativeAccuracyScale","D","observed value of run QA material(s) greater than 20% deviation from known value",2012-01-01,NA
+"cfc.chlRelativeAccuracyScale","not available","an appropriate QA material was not run along with sample, cannot evaluate",2012-01-01,NA
+"cfc.chlSampleCondition","OK","foliage in ok condition, no issues to report",2012-01-01,NA
+"cfc.chlSampleCondition","wilted","foliage wilted",2012-01-01,NA
+"cfc.chlSampleCondition","brown","foliage brown",2012-01-01,NA
+"cfc.chlSampleCondition","thawed","foliage not maintained frozen prior to analysis",2012-01-01,NA
+"cfc.chlSampleCondition","wilted","foliage wilted",2012-01-01,NA
+"cfc.chlSampleCondition","brown","foliage brown",2012-01-01,NA
+"cfc.chlSampleCondition","thawed","foliage not maintained frozen prior to analysis",2012-01-01,NA
+"cfc.chlSampleCondition","other","other foliage condition, noted in remarks",2012-01-01,NA
+"cfc.chlSampleType","purified chlorophyll","purified chlorophyll",2012-01-01,NA
+"cfc.chlSampleType","standard leaves","standard leaves",2012-01-01,NA
+"cfc.chlSampleType","spirulina","spirulina",2012-01-01,NA
+"cfc.chlSampleType","other","other",2012-01-01,NA
+"cfc.eleAnalyte","calcium","calcium",2012-01-01,NA
+"cfc.eleAnalyte","phosphorus","phosphorus",2012-01-01,NA
+"cfc.eleAnalyte","potassium","potassium",2012-01-01,NA
+"cfc.eleAnalyte","magnesium","magnesium",2012-01-01,NA
+"cfc.eleAnalyte","sulfur","sulfur",2012-01-01,NA
+"cfc.eleAnalyte","manganese","manganese",2012-01-01,NA
+"cfc.eleAnalyte","iron","iron",2012-01-01,NA
+"cfc.eleAnalyte","copper","copper",2012-01-01,NA
+"cfc.eleAnalyte","boron","boron",2012-01-01,NA
+"cfc.eleAnalyte","zinc","zinc",2012-01-01,NA
+"cfc.eleAnalyteUnits","percent","percent",2012-01-01,NA
+"cfc.eleAnalyteUnits","mg per kg","mg per kg",2012-01-01,NA
+"cfc.elementsQF","OK","data ok, no issue to report",2012-01-01,NA
+"cfc.elementsQF","sample value outlier","the measured value of the analyte for the sample is a high-value outlier, results were confirmed before reporting",2012-01-01,NA
+"cfc.elementsQF","sample value outlier - soil contamination","the measured value of the analyte for the sample is a high-value outlier likely due to soil contamination, results were confirmed before reporting",2012-01-01,NA
+"cfc.elementsQF","sample value outlier - reanalysis not possible","the measured value of the analyte for the sample is a high-value outlier, results were not confirmed due to insufficient sample",2012-01-01,NA
+"cfc.elementsQF","standard value out of range","the measured value of the analyte for the standard analyzed as unknown did not meet NEON quality assurance criteria, samples could not be rerun",2012-01-01,NA
+"cfc.elementsQF","other","some other issue with measurements related to the analyte, with details in remarks",2012-01-01,NA
+"cfc.leafSamplePosition","top of crown","leaf or needle material sampled from the top of the crown",2012-01-01,NA
+"cfc.leafSamplePosition","side of crown","leaf or needle material sampled from the sunlit side of the crown",2012-01-01,NA
+"cfc.leafSamplePosition","mixture","leaf or needle material sampled from a mixture of the top and sunlit side of the crown",2012-01-01,NA
+"cfc.lmaSampleCondition","OK","Sample condition ok",2012-01-01,NA
+"cfc.lmaSampleCondition","cold chain broken","Cold chain broken",2012-01-01,NA
+"cfc.lmaSampleCondition","invalid fresh mass","Error while taking fresh mass measurement, invalid value, not recorded",2012-01-01,NA
+"cfc.lmaSampleCondition","invalid leaf area","Error with scanned lead area measurement, invalid value, data removed",2012-01-01,NA
+"cfc.lmaSampleCondition","samples held longer than 5 days before processing","Samples held longer than 5 days before processing, deviation from protocol",2012-01-01,NA
+"cfc.lmaSampleCondition","samples experienced freeze-thaw","Samples were accidentally frozen for a period, then thawed, prior to processing",2012-01-01,NA
+"cfc.lmaSampleCondition","incorrect scanning procedure, blurry image","A different scanner was used compared to the one specified in the protocol, images reviewed and confirmed blurry",2012-01-01,NA
+"cfc.lmaSampleCondition","incorrect scanning procedure, unknown quality impact","A different scanner was used compared to the one specified in the protocol, image not available for review thus quality impact unknown",2012-01-01,NA
+"cfc.lmaSampleCondition","stems and reproductive tissues included in scan","Stems and reproductive tissues were erroneously included in the scanned image",2012-01-01,NA
+"cfc.lmaSampleCondition","other","Other (specified in remarks)",2012-01-01,NA
+"cfc.plantStatus","OK","Any individual or assemblage that is of typical mature, healthy, peak-green status for the ecosystem in question at the time of sampling",2012-01-01,2019-01-01
+"cfc.plantStatus","Insect damaged","Visible damage caused by insects; type noted in remarks if possible (e.g., mountain pine beetle, gypsy moth, etc.)",2012-01-01,2019-01-01
+"cfc.plantStatus","Disease damaged","Visible damage cause by disease; type noted in remarks if possible (e.g., Blister Rust, rot, canker, etc.)",2012-01-01,2019-01-01
+"cfc.plantStatus","Physically damaged","Visible damage caused by a physical processes; details noted in remarks if possible (e.g., broken stem, snow/ice damage, crushed, struck by lightning, bole scorch, etc.)",2012-01-01,2019-01-01
+"cfc.plantStatus","Other damage","Visible damage of unknown origin; details noted in remarks if possible",2012-01-01,2019-01-01
+"cfc.plantStatus","OK","Any individual or assemblage that is of typical mature, healthy, peak-green status for the ecosystem in question at the time of sampling",2018-01-01,NA
+"cfc.plantStatus","Insect damaged","Visible damage caused by insects; type noted in remarks if possible (e.g., mountain pine beetle, gypsy moth, etc.)",2018-01-01,NA
+"cfc.plantStatus","Disease damaged","Visible damage cause by disease; type noted in remarks if possible (e.g., Blister Rust, rot, canker, etc.)",2018-01-01,NA
+"cfc.plantStatus","Physically damaged","Visible damage caused by a physical processes; details noted in remarks if possible (e.g., broken stem, snow/ice damage, crushed, struck by lightning, bole scorch, etc.)",2018-01-01,NA
+"cfc.plantStatus","Other damage","Visible damage of unknown origin; details noted in remarks if possible",2018-01-01,NA
+"cfc.plantStatus","Leaves not fully expanded","Leaves not yet mature, individual or assemblage likely sampled early in the season or following a disturbance (e.g., fire)",2018-01-01,NA
+"cfc.plantStatus","Leaves beginning to senesce","Leaves beginning to senesce, individual or assemblage likely sampled outside of peak green conditions or stressed (e.g., drought, heat, etc.)",2018-01-01,NA
+"cfc.plantStatus","Most leaves senesced","Most leaves senesced, individual or assemblage likely sampled outside of peak green conditions",2018-01-01,NA
+"cfc.sampleCondition","OK","Sample condition ok",2012-01-01,NA
+"cfc.sampleCondition","cold chain broken","Cold chain broken",2012-01-01,NA
+"cfc.sampleCondition","dried and brown tissue, representative of the plot","Dried and brown tissue sampled since that was the dominant condition in that plot",2012-01-01,NA
+"cfc.sampleCondition","other","Other (specified in remarks)",2012-01-01,NA
+"cfc.sampleType","Woody individual","Foliar material from a woody individual",2012-01-01,NA
+"cfc.sampleType","Herbaceous clip strip","Foliar material from an herbaceous clip strip",2012-01-01,NA
+"cfc.samplingMethod","clippers","Clippers used to collect foliage samples",2012-01-01,NA
+"cfc.samplingMethod","pole pruner","Ploe Pruner used to collect foliage samples",2012-01-01,NA
+"cfc.samplingMethod","line launcher","Line launcher used to collect foliage samples",2012-01-01,NA
+"cfc.samplingMethod","slingshot","Slingshot used to collect foliage samples",2012-01-01,NA
+"cfc.samplingMethod","shotgun","Shotgun used to collect foliage samples",2012-01-01,NA
+"cfc.samplingMethod","tree climbers","Tree climbers used to collect foliage samples",2012-01-01,NA
+"cfc.samplingMethod","other","Other method used to collect foliage samples",2012-01-01,NA
+"cfc.samplingMethod","UAS","Unoccupied aerial system used to collect foliage samples",2012-01-01,NA
+"cfc.samplingProtocolVersion","NEON.DOC.001024vD","Version D of the Canopy Foliage Sampling protocol used",2012-01-01,NA
+"cfc.samplingProtocolVersion","NEON.DOC.001024vE","Version E of the Canopy Foliage Sampling protocol used",2012-01-01,NA
+"cfc.samplingProtocolVersion","NEON.DOC.001024vF","Version F of the Canopy Foliage Sampling protocol used",2018-01-01,NA
+"cfc.samplingProtocolVersion","NEON.DOC.001024vH","Version H of the Canopy Foliage Sampling protocol used",2019-01-01,NA
+"cfc.samplingProtocolVersion","NEON.DOC.001024vJ","Version J of the Canopy Foliage Sampling protocol used",2022-01-01,NA
+"cfc.samplingProtocolVersion","NEON.DOC.001024vK","Version K of the Canopy Foliage Sampling protocol used",2023-01-01,NA
+"cfc.tissueDescriptor","leaf","Leaf (including petiole) or needle material used for analysis",2012-01-01,NA
+"cfc.tissueDescriptor","photosynthetic stem","Photosynthetic stem used for analysis",2012-01-01,NA
+"cfc.tissueDescriptor","other","Other plant parts used for analysis",2012-01-01,NA
+"cfc.toxicodendron","Y","Sample may contain Toxicodendron spp",2012-01-01,NA
+"cfc.toxicodendron","N","Sample does not contain Toxicodendron spp",2012-01-01,NA
+"cfc.vstTag","Y","Individual sampled for canopy foliage is tagged for vegetation structure monitoring, more data expected in vst product",2012-01-01,NA
+"cfc.vstTag","N","Individual sampled for canopy foliage is not tagged for vegetation structure monitoring, no vst data expected",2012-01-01,NA
+"cfc.vstTag","unknown","Individual was sampled for canopy foliage before vegetation structure monitoring began, unsure if vst data will be available",2012-01-01,NA
+"hbp.subplotID","31_400","subplotID 31_400",2012-01-01,NA
+"hbp.subplotID","21_400","subplotID 21_400",2012-01-01,NA
+"hbp.subplotID","23_400","subplotID 23_400",2012-01-01,NA
+"hbp.subplotID","39_400","subplotID 39_400",2012-01-01,NA
+"hbp.subplotID","41_400","subplotID 41_400",2012-01-01,NA
+"Identification Qualifiers","cf. species","roughly equals but 'not sure' about the species",2012-01-01,NA
+"Identification Qualifiers","aff. species","similar to but is not the species",2012-01-01,NA
+"Identification Qualifiers","cf. genus","roughly equals but 'not sure' about the genus",2012-01-01,NA
+"Identification Qualifiers","aff. genus","similar to but is not the genus",2012-01-01,NA
+"Identification Qualifiers","cf. subspecies","roughly equals but 'not sure' about the subspecies",2012-01-01,NA
+"Identification Qualifiers","aff. subspecies","similar to but is not the subspecies",2012-01-01,NA
+"Identification Qualifiers","cf. family","roughly equals but 'not sure' about the family",2012-01-01,NA
+"Identification Qualifiers","aff. family","similar to but is not the family",2012-01-01,NA
+"Identification Qualifiers","cf. variety","roughly equals but 'not sure' about the variety",2012-01-01,NA
+"Identification Qualifiers","aff. variety","similar to but is not the variety",2012-01-01,NA
+"identificationRemarks","Nomenclatural adjustment","The determination has been updated because of a change in the taxonomic concept",2012-01-01,NA
+"identificationRemarks","Determination updated by expert","A taxonomic expert has indicated that this determination should be updated",2012-01-01,NA
+"identificationRemarks","Out of geographic range","The geographic range of the taxon in this determination does not include the location where this observation was made",2012-01-01,NA
+"identificationRemarks","Out of phenotypic range","Measurement of one or more phenotypic traits of the specimen suggest the determination should be updated",2012-01-01,NA
+"identificationRemarks","BOLD mismatch","BOLD data suggest this determination should be updated",2012-01-01,NA
+"identificationRemarks","Transcription error","There was a data entry error and this determination needed to be corrected",2012-01-01,NA
+"identificationRemarks","Field determination error","Field determination error",2012-01-01,NA
+"identificationRemarks","Other - see remarks","Other - see remarks",2012-01-01,NA
+"identificationRemarks","Genetic analysis","Taxonomic identity was determined by genetic analysis (e.g., PCR)",2012-01-01,NA
+"ltr.functionalGroup","Leaves","Leaves and leaf material from broadleaf species",2012-01-01,NA
+"ltr.functionalGroup","Needles","Needles from conifierous species",2012-01-01,NA
+"ltr.functionalGroup","Twigs/branches","Small twigs and branches less than 2cm diameter",2012-01-01,NA
+"ltr.functionalGroup","Woody material","Woody material including cones, bark, and other lignified tissue",2012-01-01,NA
+"ltr.functionalGroup","Seeds","Seeds and attached structures",2012-01-01,NA
+"ltr.functionalGroup","Flowers","Flowers and other non-woody reproductive structures",2012-01-01,NA
+"ltr.functionalGroup","Other","Lichen, mosses, and other unidentifiable material",2012-01-01,NA
+"ltr.functionalGroup","Mixed","Mixed, unsorted material",2012-01-01,NA
+"ltr.ligAccuracyQF","OK","observed values of run QA material fall within acceptance criteria",2012-01-01,NA
+"ltr.ligAccuracyQF","run QA criteria not met","observed values of run QA material do not fall within acceptance criteria, samples cannot be re-run",2012-01-01,NA
+"ltr.ligAnalyte","lignin","lignin",2012-01-01,NA
+"ltr.ligAnalyte","cellulose","cellulose",2012-01-01,NA
+"ltr.ligAnalyteUnits","percent","percent",2012-01-01,NA
+"ltr.ligMeasurementQF","OK","sample data ok, no issues to report",2012-01-01,NA
+"ltr.ligMeasurementQF","other","other issue with the sample measurement, more detail in remarks",2012-01-01,NA
+"ltr.ligMeasurementQF","possible sample leakage - increased uncertainty","blank bag correction indicates potential fiber particle loss during digestion, value has increased uncertainty",2012-01-01,NA
+"ltr.ligMeasurementQF","sample value outlier","sample value is an outlier, use with caution",2012-01-01,NA
+"ltr.sampleCondition","OK","OK",2015-11-01,NA
+"ltr.sampleCondition","Cold chain broken","Cold chain broken",2015-11-01,NA
+"ltr.sampleCondition","Compromised","Sample integrity compromised during collection, drying or weighing, sample discarded",2015-11-01,NA
+"ltr.sampleCondition","Lost","Sample lost after collection and before measurement of dryMass",2015-11-01,NA
+"ltr.sampleCondition","Gloves not worn for field collection","Gloves not worn for field collection, relevant to potential litter biogeochemistry bouts",2022-01-01,NA
+"ltr.sampleCondition","Gloves not worn during lab sorting","Gloves not worn during lab sorting, relevant to potential litter biogeochemistry bouts",2022-01-01,NA
+"ltr.sampleCondition","Gloves not worn for field collection or lab sorting","Gloves not worn for field collection or lab sorting, relevant to potential litter biogeochemistry bouts",2022-01-01,NA
+"ltr.sampleCondition","Other (specified in remarks)","Other",2015-11-01,NA
+"ltr.samplingProtocolVersion","NEON.DOC.001710vC","Protocol version C",2012-01-01,2020-04-01
+"ltr.samplingProtocolVersion","NEON.DOC.001710vD","Protocol version D",2012-01-01,2020-04-01
+"ltr.samplingProtocolVersion","NEON.DOC.001710vE","Protocol version E",2012-01-01,2020-04-01
+"ltr.samplingProtocolVersion","NEON.DOC.001710vF","Protocol version F",2012-01-01,2020-04-01
+"ltr.samplingProtocolVersion","NEON.DOC.001710vG","Protocol version G",2012-01-01,2020-04-01
+"ltr.samplingProtocolVersion","NEON.DOC.001710vH","Protocol version H",2019-03-01,NA
+"ltr.samplingProtocolVersion","Prototype - 2020","Functional groups pooled by site for chemical analyses prototype, not in published protocol. See DPUG for details.",2020-03-01,NA
+"ltr.samplingProtocolVersion","NEON.DOC.001710vJ","Protocol version J",2022-01-01,NA
+"ltr.trapCondition","OK - Litter collected - Trap in good shape, no issues","OK - Litter collected - Trap in good shape, no issues",2012-01-01,NA
+"ltr.trapCondition","TE - Litter not collected - trap empty","TE - Litter not collected - trap empty",2012-01-01,NA
+"ltr.trapCondition","HO - Litter not collected - Holes large enough for leaves to pass through","HO - Litter not collected - Holes large enough for leaves to pass through",2012-01-01,NA
+"ltr.trapCondition","TB - Litter not collected - trap blocked","TB - Litter not collected - trap blocked",2012-01-01,NA
+"ltr.trapCondition","TT - Litter not collected - trap tilted","TT - Litter not collected - trap tilted",2012-01-01,NA
+"ltr.trapCondition","RE - Litter not collected - trap broken, requires replacement","RE - Litter not collected - trap broken, requires replacement",2012-01-01,NA
+"ltr.trapCondition","TS - Litter not collected, not discarded - trap skipped","TS - Litter not collected, not discarded - trap skipped",2012-01-01,NA
+"ltr.trapCondition","PF - Litter collected - Trap previously flooded","PF - Litter collected - Trap previously flooded",2012-01-01,NA
+"ltr.trapCondition","NS - Litter collected - non-standard sampling event (see remarks)","NS - Litter collected - non-standard sampling event (see remarks)",2012-01-01,NA
+"ltr.trapCondition","LD - Litter discarded - collection outside protocol guidelines","Litter discarded - collection outside protocol guidelines",2012-01-01,NA
+"ltr.trapPlacement","Random","Trap location based on random selection",2012-01-01,NA
+"ltr.trapPlacement","Targeted","Trap location based on targeted selection",2012-01-01,NA
+"ltr.trapType","Elevated","Elevated trap",2012-01-01,NA
+"ltr.trapType","Ground","Ground trap",2012-01-01,NA
+"ntr.ammoniumNQF","OK","No issues to report",2012-01-01,NA
+"ntr.ammoniumNQF","below method detection limit","Sample ammonium N concentration below the minimum detection limit",2012-01-01,NA
+"ntr.ammoniumNQF","blank value outlier","Blank value flagged an an outlier",2012-01-01,NA
+"ntr.ammoniumNQF","blanks exceed sample value","Mean concentration value of the three blanks extracted with the sample is higher than the observed sample concentration",2012-01-01,NA
+"ntr.ammoniumNQF","other","Other issue, described in remarks",2012-01-01,NA
+"ntr.analyte","NH4-N","Measurement of ammonium N",2012-01-01,NA
+"ntr.analyte","NO3+NO2-N","Measurement of nitrate + nitrite N",2012-01-01,NA
+"ntr.analyteUnits","milligramsPerLiter","Unit of measurement is milligrams per liter",2012-01-01,NA
+"ntr.labSampleCondition","ok","Sample maintained frozen until analysis, no issue to report",2012-01-01,NA
+"ntr.labSampleCondition","thawed but cold","Sample thawed but stayed cold prior to analysis",2012-01-01,NA
+"ntr.labSampleCondition","thawed and warm","Sample thawed and warmed prior to analysis",2012-01-01,NA
+"ntr.labSampleCondition","leaked","Sample leaked prior to analysis",2012-01-01,NA
+"ntr.labSampleCondition","thawed but cold","Sample thawed but stayed cold prior to analysis",2012-01-01,NA
+"ntr.labSampleCondition","thawed and warm","Sample thawed and warmed prior to analysis",2012-01-01,NA
+"ntr.labSampleCondition","leaked","Sample leaked prior to analysis",2012-01-01,NA
+"ntr.labSampleCondition","other","Other issue, typically noted in remarks",2012-01-01,NA
+"ntr.nitrateNitriteNQF","OK","No issues to report",2012-01-01,NA
+"ntr.nitrateNitriteNQF","below method detection limit","Sample nitrate + nitrite N concentration below the minimum detection limit",2012-01-01,NA
+"ntr.nitrateNitriteNQF","blank value outlier","Blank value flagged an an outlier",2012-01-01,NA
+"ntr.nitrateNitriteNQF","blanks exceed sample value","Mean concentration value of the three blanks extracted with the sample is higher than the observed sample concentration",2012-01-01,NA
+"ntr.nitrateNitriteNQF","other","Other issue, described in remarks",2012-01-01,NA
+"ntr.sampleCondition","OK","Sample condition OK",2012-01-01,NA
+"ntr.sampleCondition","soil stored at incorrect temperature","Soil stored at incorrect temperature",2012-01-01,NA
+"ntr.sampleCondition","sample cup leaked during extraction","Sample cup leaked during extraction",2012-01-01,NA
+"ntr.sampleCondition","extract stored at incorrect temperature","Extract stored at incorrect temperature",2012-01-01,NA
+"ntr.sampleCondition","extract thawed but cold","Extract thawed but cold",2020-09-01,NA
+"ntr.sampleCondition","extract thawed and warm","Extract thawed and warm",2020-09-01,NA
+"ntr.sampleCondition","other","Other (specified in remarks)",2012-01-01,NA
+"ntr.sampleCondition","mass uncertain","Mass of soil used for extraction is approximate",2012-01-01,NA
+"ntr.sampleCondition","volume uncertain","Volume of potassium chloride used for extraction is approximate",2012-01-01,NA
+"ntr.sampleCondition","sample lost","Sample was lost, no inorganic nitrogen data in ntr_externalLab expected",2012-01-01,NA
+"ntr.sampleType","water","Analyte dissolved in water",2012-01-01,NA
+"ntr.sampleType","KCl","Analyte dissolved in potassium chloride",2012-01-01,NA
+"samplingImpractical","location dry","location dry",2012-01-01,NA
+"samplingImpractical","location frozen","location frozen",2012-01-01,NA
+"samplingImpractical","location snow covered","location snow covered",2012-01-01,NA
+"samplingImpractical","other","Sampling location inaccessible due to other ecological reason described in the remarks",2012-01-01,NA
+"samplingImpractical","shallow groundwater","shallow groundwater; depth of groundwater column less than 0.5 m",2012-01-01,NA
+"samplingImpractical","low yield groundwater","low yield groundwater well",2012-01-01,NA
+"samplingImpractical","high water velocity","high water velocity",2012-01-01,NA
+"samplingImpractical","staff gauge disturbed","staff gauge disturbed",2012-01-01,NA
+"samplingImpractical","staff gauge not installed","staff gauge not installed",2012-01-01,NA
+"samplingImpractical","OK","OK",2012-01-01,NA
+"samplingImpractical","coordinates not suitable","Maximum number of attempts made to sample within a subplot were unsuccessful",2012-01-01,NA
+"samplingImpractical","location flooded","location flooded",2012-01-01,NA
+"samplingImpractical","logistical","logistical",2012-01-01,NA
+"samplingImpractical","management","management",2012-01-01,NA
+"samplingImpractical","extreme weather","extreme weather",2012-01-01,NA
+"samplingImpractical","location burned","location burned",2012-01-01,NA
+"samplingImpractical","temperature low","temperature low",2012-01-01,NA
+"samplingImpractical","temperature high","temperature high",2012-01-01,NA
+"samplingImpractical","disturbance","samples not collected due to disturbance",2012-01-01,NA
+"samplingImpractical","too windy","too windy",2012-01-01,NA
+"samplingImpractical","horizon not present","horizon not present in the incubated soil sample",2012-01-01,NA
+"samplingImpractical","location wet","location too wet due to rain or dew",2012-01-01,NA
+"samplingImpractical","not all samples collected on this date","not all samples collected on this date",2012-01-01,2022-12-31
+"samplingImpractical","exclosure cell not clipped, livestock absent","exclosure clip cell not harvested, cattle absent during previous grazing interval",2012-01-01,NA
+"samplingImpractical","ambient cell not clipped, livestock absent","ambient clip cell not harvested, cattle absent during previous grazing interval",2012-01-01,NA
+"samplingImpractical","wildfire","sampling location inaccessible due to active wildfire or post fire safety hazards",2012-01-01,NA
+"samplingImpractical","wildlife hazard","wildlife hazard, specific hazard described in remarks",2012-01-01,NA
+"samplingImpractical","safety hazard","unsafe conditions at sampling location or on route to sampling location",2012-01-01,NA
+"samplingImpractical","outside target flow range","selected when stream flow already has good coverage and specific flows are being targeted",2022-03-01,NA
+"samplingImpractical","onshore protocols only","sampling not required when only onshore protocols are scheduled",2012-01-01,NA
+"samplingImpractical","night fishing","sampling not required when night fishing",2012-01-01,NA
+"samplingImpractical","obstruction","sample not collected due to an obstruction in sampling area",2012-01-01,NA
+"samplingImpractical","location vulnerable to planned sampling","location vulnerable to excessive technician impacts during planned sampling",2012-01-01,NA
+"sls.boutType","biogeochemistry","Biogeochemistry sampling",2012-01-01,NA
+"sls.boutType","microbes","Microbe sampling",2012-01-01,NA
+"sls.boutType","microbesBGC","Microbe and biogeochemistry sampling",2012-01-01,NA
+"sls.boutType","microbesBiomass","Microbes and biomass sampling",2012-01-01,NA
+"sls.boutType","microbesBiomassBGC","Microbes, biomass, and biogeochemistry sampling",2012-01-01,NA
+"sls.boutType","fieldOnly","Sampling not in conjunction with microbes, biomass or biogeochemistry",2012-01-01,NA
+"sls.geneticArchiveContainer","5 mL vial","5 mL vial used to contain genetic archive soil material",2012-01-01,NA
+"sls.geneticArchiveContainer","2 mL vial","2 mL vial used to contain genetic archive soil material",2012-01-01,NA
+"sls.geneticPreparation","dry ice","Dry ice used to flash-freeze specimen following field collection",2012-01-01,NA
+"sls.geneticPreparation","ice packs","Ice packs used to freeze specimen following field collection",2012-01-01,NA
+"sls.geneticPreparation","ultra-cold ice packs","Ice packs frozen in the -80 freezer used to freeze specimen following field collection",2012-01-01,NA
+"sls.geneticPreparation","other","Other method used to preserve specimen following field collection",2012-01-01,NA
+"sls.geneticSampleCondition","cold chain broken","Cold chain broken",2012-01-01,NA
+"sls.geneticSampleCondition","OK","Sample condition OK",2012-01-01,NA
+"sls.geneticSampleCondition","other","Other",2012-01-01,NA
+"sls.horizon","O","Soil core collected from the organic horizon",2012-01-01,NA
+"sls.horizon","M","Soil core collected from the mineral horizon",2012-01-01,NA
+"sls.horizonDetails","OK","OK, no inconsistencies",2012-01-01,NA
+"sls.horizonDetails","Thin O horizon present","Thin O horizon present",2012-01-01,NA
+"sls.horizonDetails","Thin M horizon present","Thin M horizon present",2012-01-01,NA
+"sls.horizonDetails","Horizon indeterminate","Soil horizon was mis-classified or could not be accurately classified in the field",2012-01-01,NA
+"sls.horizonDetails","Water table encountered","Water table was encountered when sampling horizon",2012-01-01,NA
+"sls.horizonDetails","Mature biological soil crust present","Mature biological soil crust was present and homogenized in to the soil sample",2012-01-01,NA
+"sls.horizonDetails","Woody horizon","Horizon contains a large amount of decayed woody material",2012-01-01,NA
+"sls.horizonDetails","other","Horizon not fitting Protocol definitions due to other reason described in the remarks",2012-01-01,NA
+"sls.incubationCondition","OK","Incubation condition as expected, no issues to report",2012-01-01,NA
+"sls.incubationCondition","cap missing","Cap was removed and core found uncovered",2012-01-01,NA
+"sls.incubationCondition","disturbed by animal, sitting on surface","Core or bag was distrubed by an animal and moved from in-situ location to soil surface",2012-01-01,NA
+"sls.incubationCondition","other","Other, with details explained in remarks",2012-01-01,NA
+"sls.incubationCondition","borehole had water","Water was present in the borehole when cylinder was removed",2017-01-01,NA
+"sls.incubationCondition","buried bag had water","Buried bag contained excess water upon retrieval, suggesting leak or bad seal",2017-01-01,NA
+"sls.incubationCondition","animal chewed hole in bag","Animal or insect chewed a small hole in the bag",2017-01-01,NA
+"sls.incubationCondition","incomplete sample recovery","Incomplete soil material recovered, most common when soil falls out of the core upon retrieval",2017-01-01,NA
+"sls.incubationCondition","sample destroyed, not saved","Sample destroyed during incubation, not saved or processed",2017-01-01,NA
+"sls.incubationCondition","sample not found","Sample not found following incubation",2017-01-01,NA
+"sls.incubationCondition","sample colonized by insects, not saved","Incubating sample was heavily colonized by insects, sample not saved",2022-01-01,NA
+"sls.incubationCondition","sample had moderate insect activity","Incubating sample showed moderate insect activity, insects avoided and sample saved",2022-01-01,NA
+"sls.incubationCondition","standing water on top of the core","PVC tube found with standing water on top of the soil core",2022-01-01,NA
+"sls.incubationCondition","cap missing but replaced","Core found uncovered but cap replaced by staff visiting the plot",2022-01-01,NA
+"sls.incubationMethod","no incubation","No incubation was conducted",2012-01-01,NA
+"sls.incubationMethod","covered core","Sample incubation with covered core method",2012-01-01,NA
+"sls.incubationMethod","buried bag","Sample incubation with buried bag method",2012-01-01,NA
+"sls.moistureCondition","OK","sample condition OK",2012-01-01,NA
+"sls.moistureCondition","tin spilled","tin spilled during processing, adds uncertainty to moisture value",2012-01-01,NA
+"sls.moistureCondition","tin lost","tin lost during processing, no moisture data available",2012-01-01,NA
+"sls.moistureCondition","used sieved soil","used sieved soil although protocol specifies unsieved, low impact to moisture values",2012-01-01,NA
+"sls.moistureCondition","sampleID uncertain","possible sampleID mix-up, other potential sampleID is specified in remarks",2012-01-01,NA
+"sls.moistureCondition","used frozen soil","used frozen soil due to lack of immediate access to drying oven",2012-01-01,NA
+"sls.moistureCondition","other","other issue with more detail in remarks",2012-01-01,NA
+"sls.nTransBout","tInitial","Collection of initial N transformation core",2012-01-01,NA
+"sls.nTransBout","tFinal","Collection of incubated N transformation core",2012-01-01,NA
+"sls.nTransBout","No","No N transformation sample collection",2012-01-01,NA
+"sls.sampleCondition","oven temperature out of range","Oven temperature used for sample processing out of the acceptable range",2012-01-01,NA
+"sls.sampleCondition","storage temperature out of range","Sample storage temperature out of the acceptable range",2012-01-01,NA
+"sls.sampleCondition","OK","Sample condition OK",2012-01-01,NA
+"sls.sampleExtent","entire","Sample represents the full extent of the sampled horizon",2012-01-01,NA
+"sls.sampleExtent","obstruction","Sample extends to an obstruction such as a rock or large root",2012-01-01,NA
+"sls.sampleExtent","maximum","Sample collected to the maximum depth defined in the protocol",2012-01-01,NA
+"sls.sampleExtent","other","Other",2012-01-01,NA
+"sls.sampleTiming","wetDryTransition","Transition from wet to dry season",2012-01-01,NA
+"sls.sampleTiming","winterSpringTransition","Transition from winter to spring season",2012-01-01,NA
+"sls.sampleTiming","peakGreenness","Summer/peak greenness sampling",2012-01-01,NA
+"sls.sampleTiming","dryWetTransition","Transition from dry to wet season",2012-01-01,NA
+"sls.sampleTiming","fallWinterTransition","Transition from fall to winter season",2012-01-01,NA
+"sls.sampleTiming","drySeason","Dry season",2012-01-01,NA
+"sls.sampleTiming","other","Season not represented in options list",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vC","NEON.DOC.014048vC",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vD","NEON.DOC.014048vD",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vE","NEON.DOC.014048vE",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vF","NEON.DOC.014048vF",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vG","NEON.DOC.014048vG",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vB","NEON.DOC.014048vB",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vH","NEON.DOC.014048vH",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vJ","NEON.DOC.014048vJ",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vK","NEON.DOC.014048vK",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.004130vA","NEON.DOC.004130vA",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.004130vC","NEON.DOC.004130vC",2012-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vL","NEON.DOC.014048vL",2019-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.004130vD","NEON.DOC.004130vD",2019-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vM","NEON.DOC.014048vM",2019-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.004130vE","NEON.DOC.004130vE",2019-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vN","NEON.DOC.014048vN",2019-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vO","NEON.DOC.014048vO",2022-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.014048vP","NEON.DOC.014048vP",2024-01-01,NA
+"sls.samplingProtocolVersion","NEON.DOC.004130vF","NEON.DOC.004130vF",2024-01-01,NA
+"sls.soilSamplingDevice","auger","Soil auger used to obtain the sample",2012-01-01,NA
+"sls.soilSamplingDevice","probe","Soil probe used to obtain the sample",2012-01-01,NA
+"sls.soilSamplingDevice","corer","Soil corer used to obtain the sample",2012-01-01,NA
+"sls.soilSamplingDevice","trowel","Trowel used to obtain the sample",2012-01-01,NA
+"sls.soilSamplingDevice","bulb corer","Bulb corer auger used to obtain the sample",2012-01-01,NA
+"sls.soilSamplingDevice","brownie cutter","10 cm square frame",2012-01-01,NA
+"sls.soilSamplingDevice","sediment sampler","coring device specifically designed for sampling sediment",2012-01-01,NA
+"sls.soilSamplingDevice","PVC tube","PVC tube",2012-01-01,NA
+"sls.soilSamplingDevice","other","Other device used to obtain the sample",2012-01-01,NA
+"sls.subplotID","21_400","Subplot named according to pointID of the southwest corner",2012-11-01,NA
+"sls.subplotID","23_400","Subplot named according to pointID of the southwest corner",2012-11-01,NA
+"sls.subplotID","39_400","Subplot named according to pointID of the southwest corner",2012-11-01,NA
+"sls.subplotID","41_400","Subplot named according to pointID of the southwest corner",2012-11-01,NA
+"vst.bandCondition","ok","Dendrometer band in good condition",2019-01-01,NA
+"vst.bandCondition","reset","Dendrometer band undamaged but location has shifted, gap measured prior to resetting",2019-01-01,NA
+"vst.bandCondition","replaced","Dendrometer band damaged, no measurement possible, band replaced",2019-01-01,NA
+"vst.bandCondition","measuredAndReplaced","Dendrometer band damaged, lower quality measurement made, band replaced",2019-01-01,NA
+"vst.canopyPosition","Open grown","Full sun, not touching other plants, with crowns that have received full light from above and from all sides throughout most of its life, particularly during its early developmental period",2012-01-01,NA
+"vst.canopyPosition","Full sun","Crown receiving full light from above and partly from the sides. Their crown form or shape appears to be free of influence from neighboring plants",2012-01-01,NA
+"vst.canopyPosition","Partially shaded","Crown receive full light from above but little direct sunlight penetrates their sides",2012-01-01,NA
+"vst.canopyPosition","Mostly shaded","Individuals that receive little direct light from above and none from the sides",2012-01-01,NA
+"vst.canopyPosition","Full shade","Individuals that receive no direct sunlight either from above or the sides",2012-01-01,NA
+"vst.changedMeasurementLocation","noChange","measurement location is consistent with previous measurement location",2020-01-01,NA
+"vst.changedMeasurementLocation","deformityGrowth","growth of a deformity compromises past measurement location",2020-01-01,NA
+"vst.changedMeasurementLocation","branchGrowth","growth of a branch compromises past measurement location",2020-01-01,NA
+"vst.changedMeasurementLocation","damage","localized damage compromises past measurement location",2020-01-01,NA
+"vst.changedMeasurementLocation","newRootingPoint","the measurement location is shifted relative to a new rooting point",2020-01-01,NA
+"vst.changedMeasurementLocation","boleChange","a different emergent bole is selected for measurement",2020-01-01,NA
+"vst.changedMeasurementLocation","protocolChange","measurement requirements changed between protocol versions",2020-01-01,NA
+"vst.dataCollected","allGrowthForms","All qualifying growth forms measured",2019-01-01,NA
+"vst.dataCollected","dendrometerOnly","Only stems with dendrometer bands measured",2019-01-01,NA
+"vst.dataCollected","partial","Scheduled sampling partially completed. This is a protocol deviation and should occur infrequently.",2018-01-01,NA
+"vst.eventType","towerSubset","Subset of plots measured for productivity analyses",2019-01-01,NA
+"vst.eventType","distributedAndTowerSubset","All Distributed plots and a subset of Tower plots measured",2019-01-01,NA
+"vst.eventType","allTowerPlots","All Tower plots measured",2019-01-01,NA
+"vst.eventType","distributedOnly","Only Distributed plots measured",2020-01-01,NA
+"vst.growthForm","single bole tree","Tree with single primary supporting stem",2012-01-01,NA
+"vst.growthForm","multi-bole tree","Tree with multiple primary supporting stems",2012-01-01,NA
+"vst.growthForm","small tree","Tree with diameter between 1 and 10 cm. and height > 130 centimeters",2012-01-01,NA
+"vst.growthForm","sapling","Young tree with diameter < 1 cm at 10cm along the stem",2012-01-01,NA
+"vst.growthForm","liana","Non self-supporting woody plant",2012-01-01,NA
+"vst.growthForm","single shrub","A self-supporting individual, typically with multiple primary stems, at least one of which has a diameter > 1 centimeter at 130 centimeters high",2012-01-01,NA
+"vst.growthForm","small shrub","A self-supporting individual, typically with multiple primary stems, at least one of which has a diameter > 1 centimeter at 10 centimeters high",2012-01-01,NA
+"vst.growthForm","fern","Spore bearing vascular species with frond length >30 centimeters, excluding tree ferns",2012-01-01,NA
+"vst.growthForm","cactus","Any member of the family Cactaceae",2012-01-01,NA
+"vst.growthForm","yucca","Yucca, agave and other non-woody, basal rosette subshrubs",2012-01-01,NA
+"vst.growthForm","xerophyllum","Any member of the genus Xerophyllum",2012-01-01,NA
+"vst.growthForm","palm","Any member of the family Arecaceae",2012-01-01,2023-04-01
+"vst.growthForm","ocotillo","Foquieria splendens and all associated subspecies",2012-01-01,NA
+"vst.growthForm","tree fern","Large palmlike ferns with a trunklike stem bearing a crown of large fronds (e.g. Cibotium spp. and Sadleria spp.)",2018-01-01,2023-04-01
+"vst.growthForm","palm tree","Member of the family Arecaceae with DBH > 10 cm AND stem length > 130",2012-01-01,NA
+"vst.growthForm","small palm","Member of the family Arecaceae with DBH < 10 cm or stem length < 130",2012-01-01,NA
+"vst.growthForm","large tree fern","Large palmlike ferns with a trunklike stem bearing a crown of large fronds (e.g. Cibotium spp. and Sadleria spp.) with DBH > 10 cm AND stem length > 130 cm",2018-01-01,NA
+"vst.growthForm","small tree fern","Large palmlike ferns with a trunklike stem bearing a crown of large fronds (e.g. Cibotium spp. and Sadleria spp.) with DBH < 10 cm OR stem length < 130 cm",2018-01-01,NA
+"vst.nestedSubplotArea","1","Data collected within 1 m2 sampling areas",2012-01-01,NA
+"vst.nestedSubplotArea","3","Data collected within 3 m2 sampling areas",2012-01-01,NA
+"vst.nestedSubplotArea","10","Data collected within 10 m2 sampling areas",2012-01-01,NA
+"vst.nestedSubplotArea","25","Data collected within 25 m2 sampling areas",2012-01-01,NA
+"vst.nestedSubplotArea","50","Data collected within 50 m2 sampling areas",2022-01-01,NA
+"vst.nestedSubplotArea","100","Data collected within 100 m2 sampling areas",2012-01-01,NA
+"vst.nestedSubplotArea","noneSelected","No nested subplot area defined, data are collected within the entire subplot",2012-01-01,NA
+"vst.nestedSubplotArea","unknown","Nested subplot area not recorded actual sampling area is not known for certain.",2012-01-01,NA
+"vst.nestedSubplotArea","notAssessed","Vegetation type not considered for the specified event type",2019-01-01,NA
+"vst.plantStatus","Live","Any live, undamaged individual  (new, re-measured or ingrowth)",2012-01-01,NA
+"vst.plantStatus","Standing dead","Standing dead tree or standing dead bole within a multi-bole tree, regardless of cause of death. The entire tree or bole must be dead, and the main bole is NOT broken",2012-01-01,NA
+"vst.plantStatus","Removed","An individual that has been cut and removed by direct human activity related to harvesting, silviculture or land clearing (re-measurement plots only)",2012-01-01,NA
+"vst.plantStatus","Live, insect damaged","Visible damage caused by insects; note 'crown' or 'bole' damage in remarks, and indicate type of insect causing damage if possible (e.g., mountain pine beetle, gypsy moth, etc.)",2012-01-01,NA
+"vst.plantStatus","Live, disease damaged","Visible damage cause by disease; note 'crown' or 'bole' damage in remarks, and indicate type of disease causing damage if possible (e.g., Blister Rust, rot, canker, other (specify), unknown",2012-01-01,NA
+"vst.plantStatus","Live, physically damaged","Visible damage not caused by disease or insects; note 'crown' or 'bole' damage in remarks, and indicate type of physical damage if possible (e.g., broken stem, bole scar, girdling, snow/ice damage, crushed, lightning, crown scorch, bole scorch)",2012-01-01,NA
+"vst.plantStatus","Live,  other damage","Visible damage of unknown origin; note 'crown' or 'bole' damage in remarks, and note cause if possible",2012-01-01,NA
+"vst.plantStatus","No longer qualifies","Individual is still alive and may qualify in the future, but does not currently qualify. Reason noted in remarks (e.g., consumption of qualifying boles / stems by fire, blow-down of qualifying boles / stems, etc.)",2012-01-01,NA
+"vst.plantStatus","Live, broken bole","Tree with broken spike top, tree with broken main bole and ascending leaders, tree broken and dead at top but live below",2012-01-01,NA
+"vst.plantStatus","Dead, broken bole","All parts of the broken tree are dead; may have broken spike top, or dead leaders ascending beyond the break point. Indicate factors associated with death and the source of damage in order of importance in the remarks field",2012-01-01,NA
+"vst.plantStatus","Lost, burned","A previously measured individual that is not measured in the current bout because the plot has been burned and the individual could not be located for remeasurement",2012-01-01,NA
+"vst.plantStatus","Lost, herbivory","A previously measured individual that is not measured in the current bout because the individual could not be located for remeasurement. Cause of loss is presumed to be herbivory",2012-01-01,NA
+"vst.plantStatus","Lost, presumed dead","A previously measured individual that is not measured in the current bout because the individual could not be located for remeasurement, the individual is presumed dead based on evidence within the plot. Note in remarks reason (i.e. blowdown event)",2012-01-01,NA
+"vst.plantStatus","Lost, tag damaged","A previously measured individual that is not measured in the current bout due to inability to re-locate because of widespread damage to tags within a plot",2012-01-01,2018-11-01
+"vst.plantStatus","Lost, fate unknown","A previously measured individual that is not measured in the current bout note because the individual could not be relocated",2012-01-01,NA
+"vst.plantStatus","Downed","Part or all of a dead tree is down, and in contact with the ground. Percent of the bole in direct contact with the ground recorded in remarks",2012-01-01,NA
+"vst.recordType","map and tag","Permanently tagged individual with taxonomic data, general location and within plot relative position mapping",2012-01-01,NA
+"vst.recordType","tag only","Permanently tagged individual with taxonomic data and general location (e.g. plot, subplot)",2012-01-01,NA
+"vst.recordType","temporary","Temporary tag for an individual that is not tracked through time; contains taxonomic and general location data",2012-01-01,NA
+"vst.recordType","band","Permanently tagged individual with taxonomic data, relative mapping and dendrometer band installed",2019-08-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vA","Data collected according to protocol version A",2012-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vB","Data collected according to protocol version B",2012-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vC","Data collected according to protocol version C",2012-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vD","Data collected according to protocol version D",2012-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vE","Data collected according to protocol version E",2012-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vF","Data collected according to protocol version F",2012-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vG","Data collected according to protocol version G",2012-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vH","Data collected according to protocol version H",2012-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vJ","Data collected according to protocol version J",2019-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vK","Data collected according to protocol version K",2022-01-01,NA
+"vst.samplingProtocolVersion","NEON.DOC.000987vM","Data collected according to protocol version M",2023-01-01,NA
+"vst.shape","half-sphere","half-sphere",2012-01-01,NA
+"vst.shape","oblate half-sphere","oblate half-sphere",2012-01-01,NA
+"vst.shape","cone","cone",2012-01-01,NA
+"vst.shape","inverted cone","inverted cone",2012-01-01,NA
+"vst.shape","cylinder","cylinder",2012-01-01,NA
+"vst.shape","ellipsoid or sphere","ellipsoid or sphere",2012-01-01,NA
+"vst.shape","vine","vine",2012-01-01,NA
+"vst.shape","columnar","columnar",2012-01-01,NA
+"vst.shape","pad","Pad forming growth pattern (e.g. Opuntia spp.)",2012-01-01,NA
+"vst.subplot","21_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_400","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","23_400","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","24_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_400","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","33_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_400","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_400","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","48_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","51_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_1_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_10_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_25_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_3_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_50_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","24_1_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","24_10_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","24_25_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","24_3_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","24_50_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_1_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_1_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_10_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_10_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_25_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_25_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_3_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_3_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_50_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_1_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_1_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_10_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_10_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_25_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_25_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_3_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_3_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","33_1_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","33_10_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","33_25_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","33_3_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","33_50_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_1_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_10_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_25_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_3_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_50_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_1_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_1_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_10_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_10_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_25_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_25_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_3_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_3_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_1_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_1_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_10_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_10_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_25_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_25_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_3_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_3_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_50_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","48_1_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","48_10_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","48_25_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","48_3_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","48_50_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","51_1_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","51_10_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","51_25_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","51_3_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","51_50_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_25_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_100_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_400","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_10_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_10_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","23_10_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_10_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_25_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","23_25_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_25_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_100_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_100_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_10_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_10_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_100","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_1_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_unknown_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","51_unknown_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","33_unknown_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","24_unknown_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_unknown_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","48_unknown_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_unknown_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_unknown_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_unknown_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_unknown_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_unknown_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_unknown_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_unknown_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_unknown_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_unknown_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_unknown_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_unknown_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_unknown_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_unknown_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_unknown_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_unknown_2","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_unknown_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_unknown_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_unknown_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_unknown_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_unknown_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_unknown_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_unknown_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_10_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_25_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_25_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","23_100_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","39_10_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_25_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_100_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_100_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_25_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_unknown_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_100_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_100_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_1_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","23_1_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_1_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_3_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_3_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_3_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","31_3_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","32_3_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","21_3_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_25_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_25_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_100_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_100_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","23_unknown_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","41_1_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","40_1_unknown","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_unknown_1","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_unknown_4","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.subplot","unknown_25_3","Subplot named according to pointID of the southwest corner",2012-01-01,NA
+"vst.tagStatus","ok","Tag is attached to individual and consistent with previously entered value",2012-01-01,NA
+"vst.tagStatus","replaced","Tag was no longer attached and has been re-made or reattached",2012-01-01,NA
+"vst.tagStatus","mislabeled","TagID was incorrectly recorded and has been reassigned",2012-01-01,2018-11-01
+"vst.tagStatus","untagged","Measured individual does not have unique tagID assigned",2012-01-01,2018-11-01
+"vst.tagStatus","unknown","Tagged individual could not be re-located for measurement",2012-01-01,2018-11-01
+"vst.tagStatus","removed","Tagged individuals no longer qualifies for measurement according to any protocol and tagID will not be used again at the site",2012-01-01,2018-12-31
+"vst.tagStatus","notRequired","Measured individual does not have unique tagID assigned, no status reported",2012-01-01,NA
+"vst.tagStatus","tagRemoved","Tagged individuals no longer qualifies for measurement according to any protocol and tagID will not be used again at the site",2018-01-01,NA
+"Yes or No choice","Y","Yes",2012-01-01,NA
+"Yes or No choice","N","No",2012-01-01,NA
+"Yes, No, or Unknown choice","Y","Yes",2012-01-01,NA
+"Yes, No, or Unknown choice","N","No",2012-01-01,NA
+"Yes, No, or Unknown choice","U","Unknown",2012-01-01,NA

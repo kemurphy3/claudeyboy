@@ -1,0 +1,4 @@
+"Table","Primary_Key","Total_Records","Unique_Records","Duplicates"
+"fsp_boutMetadata_pub","eventID",3,2,1
+"fsp_sampleMetadata_pub","spectralSampleID",93,93,0
+"fsp_spectralData_pub","spectralSampleID",64,64,0
