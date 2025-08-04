@@ -1,0 +1,913 @@
+---
+title: "FSP Data Quality Review, `r params$titleDate`"
+author: "Your Name"
+date: "Report compiled on `r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+params:
+  titleDate: 'Default Title' 
+  startMonth: '2022-01'
+  endMonth: '2022-01'
+  monthlyAnnual: 'monthly'
+  labData: TRUE
+  customParams: TRUE
+  reportTimestamp: '20240101000000'
+  reportName: 'fsp_monthly_YYYYMM_YYYYMMDDHHMMSS'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = T, echo = F, message = F)
+```
+
+```{css toc-content, echo = FALSE}
+#TOC {
+  /*moves toc to left*/
+  margin: 20px 0px 25px 0px;
+}
+
+.main-container {
+    margin-left: 20px;
+}
+/*makes page wider so text and tables extend toward right margin*/ 
+body .main-container{
+    max-width: 90vw;
+}
+```
+
+
+## Load packages and data
+
+This script uses portal data, downloaded to R directly using neonUtilities. The R code version used to run this script is as follows:
+
+```{r R version}
+version$version.string
+print(paste("neonOSqc version:", packageVersion("neonOSqc")))
+```
+
+The data being checked in this report are from the three field tables in the 'Field spectral' data product (DP1.30012.001):
+
++ fsp_boutMetadata
++ fsp_sampleMetadata  
++ fsp_spectralData
+
+Cross-reference checks are performed using the 'Plant foliar traits' data product (DP1.10026.001):
+
++ cfc_fieldData
+
+The data being QC'd are from the following time periods:
+
+```{r R data timeperiod}
+# Set date variables from render file
+startDate_checked <- params$startMonth
+endDate_checked <- params$endMonth
+
+print(paste0('First year-month of input data = ', startDate_checked, '. Last year-month of input data = ', endDate_checked, "."))
+```
+
+
+```{r load data, results = F}
+# Load CRAN packages
+library(neonUtilities) # functions to download portal data
+library(neonOS) # function for dup checking, recommend using the CRAN version
+library(devtools)# functions for interacting with packages (if needed)
+library(tidyverse) # these functions are used in the template to work with data frames
+
+# Install packages from GitHub if not done or not updated in a while - else comment out
+# Note that 'install_local' can also work, as long as repo is synced should be same outcome
+# install_github('NEONScience/neonOSqc') 
+# install_github("NEONScience/restR2") 
+
+# Load internal NEON packages
+library(neonOSqc) # OS QC functions
+library(restR2) # if using restR2 calls directly
+
+# Set options for DT:datatables
+dtOptions = list(
+    paging = FALSE,
+    scrollX = TRUE,
+    scrollY = "42vh",
+    scrollCollapse = TRUE,
+    buttons = 'csv',
+    dom='B<"top"i>t',
+    columnDefs = list(
+      list(className = "dt-left", targets = "_all")
+    )
+  )
+
+# Set script type from render file
+scriptType <- params$monthlyAnnual
+annual = ifelse(scriptType == "annual", T, F) # optional, if the 'annual' parameter is used to set chunks to run or not based on one month vs annual data pull
+
+# What is the name and timestamp for the report? Need when outputs go to GCS
+reportTimestamp <- params$reportTimestamp
+reportName <- params$reportName
+
+# Load portal data - FSP
+spectra <- try(neonUtilities::loadByProduct(
+  dpID='DP1.30012.001',
+  check.size=F, 
+  startdate = startDate_checked,
+  enddate = endDate_checked,
+  site = "all",
+  include.provisional = T,
+  release = "LATEST",
+  token = Sys.getenv('NEON_PAT')), # remove this line if you don't have a token, though everyone is encouraged to get one
+  silent = T)
+
+# Load portal data - CFC (for cross-reference checks)
+canopyFoliage <- try(neonUtilities::loadByProduct(
+  dpID='DP1.10026.001',
+  check.size=F, 
+  startdate = startDate_checked,
+  enddate = endDate_checked,
+  site = "all",
+  include.provisional = T,
+  release = "LATEST",
+  token = Sys.getenv('NEON_PAT')),
+  silent = T)
+
+# if the data list has no data, then stop and don't run the script
+if(identical(names(spectra), "NONE")){
+  print("There are no FSP data in this date range to check, no script outputs generated.")
+  knitr::knit_exit()
+}else{
+  # Turn all tables in the list to dataframe (DF) in the global environment, where name of table = name of DF. 
+  invisible(list2env(spectra, envir=.GlobalEnv))
+}
+
+# Check if CFC data is available
+if(identical(names(canopyFoliage), "NONE")){
+  print("There are no CFC data in this date range for cross-reference checks.")
+  cfc_available <- FALSE
+}else{
+  invisible(list2env(canopyFoliage, envir=.GlobalEnv))
+  cfc_available <- TRUE
+}
+
+# Add required metadata columns to FSP tables
+fsp_boutMetadata_pub$dpID <- "DP1.30012.001"
+fsp_boutMetadata_pub$dpName <- "Field spectral"
+fsp_boutMetadata_pub$tableName <- "fsp_boutMetadata_pub"
+
+fsp_sampleMetadata_pub$dpID <- "DP1.30012.001"
+fsp_sampleMetadata_pub$dpName <- "Field spectral"
+fsp_sampleMetadata_pub$tableName <- "fsp_sampleMetadata_pub"
+
+fsp_spectralData_pub$dpID <- "DP1.30012.001"
+fsp_spectralData_pub$dpName <- "Field spectral"
+fsp_spectralData_pub$tableName <- "fsp_spectralData_pub"
+
+# Add domainID if not present
+if(!"domainID" %in% names(fsp_boutMetadata_pub)){
+  fsp_boutMetadata_pub$domainID <- substr(fsp_boutMetadata_pub$siteID, 1, 3)
+}
+if(!"domainID" %in% names(fsp_sampleMetadata_pub)){
+  fsp_sampleMetadata_pub$domainID <- substr(fsp_sampleMetadata_pub$siteID, 1, 3)
+}
+if(!"domainID" %in% names(fsp_spectralData_pub)){
+  fsp_spectralData_pub$domainID <- substr(fsp_spectralData_pub$siteID, 1, 3)
+}
+
+# Add metadata to CFC table if available
+if(cfc_available && exists("cfc_fieldData")){
+  cfc_fieldData$dpID <- "DP1.10026.001"
+  cfc_fieldData$dpName <- "Plant foliar traits"
+  cfc_fieldData$tableName <- "cfc_fieldData"
+  if(!"domainID" %in% names(cfc_fieldData)){
+    cfc_fieldData$domainID <- substr(cfc_fieldData$siteID, 1, 3)
+  }
+}
+
+# Create year column for functions that need it
+fsp_boutMetadata_pub$year <- substr(fsp_boutMetadata_pub$collectDate, 1, 4)
+fsp_sampleMetadata_pub$year <- substr(fsp_sampleMetadata_pub$collectDate, 1, 4)
+
+# Load variables file if available (for removeDups function)
+# Note: In production, this would be loaded from the neonOSqc package or a lookup table
+variables_30012 <- NULL # Placeholder - would need actual variables file
+```
+
+## Check for Duplicates
+
+This section runs a de-duping function on the FSP data and creates a new version of each table with duplicates removed for use in completeness tests. If any duplicates are present, follow-up investigation is needed.
+
+```{r dup checks}
+# Check for duplicates in fsp_boutMetadata_pub
+# Using neonOS::removeDups if variables file is available, otherwise using custom duplicate check
+if(!is.null(variables_30012)){
+  fsp_boutMetadata_noDups <- neonOS::removeDups(data = fsp_boutMetadata_pub, 
+                                                 variables = variables_30012,
+                                                 table = "fsp_boutMetadata_pub")
+  
+  fsp_sampleMetadata_noDups <- neonOS::removeDups(data = fsp_sampleMetadata_pub,
+                                                   variables = variables_30012, 
+                                                   table = "fsp_sampleMetadata_pub")
+  
+  fsp_spectralData_noDups <- neonOS::removeDups(data = fsp_spectralData_pub,
+                                                 variables = variables_30012,
+                                                 table = "fsp_spectralData_pub")
+} else {
+  # Simple duplicate check based on primary keys from fsp_QAQC_checks.csv
+  fsp_boutMetadata_pub$duplicateRecordQF <- as.integer(duplicated(fsp_boutMetadata_pub$eventID))
+  fsp_boutMetadata_noDups <- fsp_boutMetadata_pub[fsp_boutMetadata_pub$duplicateRecordQF == 0,]
+  
+  fsp_sampleMetadata_pub$duplicateRecordQF <- as.integer(duplicated(fsp_sampleMetadata_pub$sampleID))
+  fsp_sampleMetadata_noDups <- fsp_sampleMetadata_pub[fsp_sampleMetadata_pub$duplicateRecordQF == 0,]
+  
+  fsp_spectralData_pub$duplicateRecordQF <- as.integer(duplicated(fsp_spectralData_pub$sampleID))
+  fsp_spectralData_noDups <- fsp_spectralData_pub[fsp_spectralData_pub$duplicateRecordQF == 0,]
+}
+
+# Summarize duplicate results
+dup_summary <- data.frame(
+  Table = c("fsp_boutMetadata_pub", "fsp_sampleMetadata_pub", "fsp_spectralData_pub"),
+  Total_Records = c(nrow(fsp_boutMetadata_pub), nrow(fsp_sampleMetadata_pub), nrow(fsp_spectralData_pub)),
+  Unique_Records = c(nrow(fsp_boutMetadata_noDups), nrow(fsp_sampleMetadata_noDups), nrow(fsp_spectralData_noDups)),
+  Duplicates = c(nrow(fsp_boutMetadata_pub) - nrow(fsp_boutMetadata_noDups),
+                 nrow(fsp_sampleMetadata_pub) - nrow(fsp_sampleMetadata_noDups),
+                 nrow(fsp_spectralData_pub) - nrow(fsp_spectralData_noDups))
+)
+
+print("Duplicate check summary:")
+print(dup_summary)
+```
+
+### Duplicate Summary {.tabset .tabset-fade .tabset-pills}
+
+#### Summary
+
+```{r dup summary table}
+DT::datatable(dup_summary, options = dtOptions)
+```
+
+#### Bout Metadata Duplicates
+
+```{r bout dup details}
+if(any(fsp_boutMetadata_pub$duplicateRecordQF == 1)){
+  bout_dups <- fsp_boutMetadata_pub[fsp_boutMetadata_pub$duplicateRecordQF == 1,]
+  DT::datatable(bout_dups, options = dtOptions)
+} else {
+  cat("No duplicates found in fsp_boutMetadata_pub")
+}
+```
+
+#### Sample Metadata Duplicates
+
+```{r sample dup details}
+if(any(fsp_sampleMetadata_pub$duplicateRecordQF == 1)){
+  sample_dups <- fsp_sampleMetadata_pub[fsp_sampleMetadata_pub$duplicateRecordQF == 1,]
+  DT::datatable(sample_dups, options = dtOptions)
+} else {
+  cat("No duplicates found in fsp_sampleMetadata_pub")
+}
+```
+
+#### Spectral Data Duplicates
+
+```{r spectral dup details}
+if(any(fsp_spectralData_pub$duplicateRecordQF == 1)){
+  spectral_dups <- fsp_spectralData_pub[fsp_spectralData_pub$duplicateRecordQF == 1,]
+  DT::datatable(spectral_dups, options = dtOptions)
+} else {
+  cat("No duplicates found in fsp_spectralData_pub")
+}
+```
+
+## REPEAT THESE STEPS FOR ALL RELEVANT TABLES
+
+The duplicate checking has been completed for all three FSP tables as shown above.
+
+## Completeness
+
+This section examines data completeness, checking whether all expected data have been collected and published. Multiple completeness checks are performed according to the requirements in fsp_QAQC_checks.csv.
+
+### Bout Completeness
+
+This check verifies that all expected bouts were collected.
+
+```{r bout completeness}
+# Run bout completeness check using correct parameters
+fsp.bout.completeness <- complete_bout(input.df = fsp_boutMetadata_noDups,
+                                       mod = "fsp",
+                                       bout.var = "eventID",
+                                       date.var = "collectDate",
+                                       current.year = FALSE,
+                                       fig = TRUE)
+
+# Display results
+print(paste("Total bouts checked:", nrow(fsp.bout.completeness$complete_bout_all)))
+print(paste("Missing or flagged bouts:", nrow(fsp.bout.completeness$complete_bout_flags)))
+```
+
+#### Bout Completeness Results {.tabset .tabset-fade .tabset-pills}
+
+##### All Bouts
+
+```{r bout complete all}
+DT::datatable(fsp.bout.completeness$complete_bout_all, options = dtOptions)
+```
+
+##### Flagged Bouts
+
+```{r bout complete flags}
+if(nrow(fsp.bout.completeness$complete_bout_flags) > 0){
+  DT::datatable(fsp.bout.completeness$complete_bout_flags, options = dtOptions)
+} else {
+  cat("No bouts flagged")
+}
+```
+
+##### Summary
+
+```{r bout complete summary}
+DT::datatable(fsp.bout.completeness$complete_bout_summary, options = dtOptions)
+```
+
+##### Figure
+
+```{r bout complete figure, eval=exists("fsp.bout.completeness$complete_bout_figure")}
+if(!is.null(fsp.bout.completeness$complete_bout_figure)){
+  print(fsp.bout.completeness$complete_bout_figure)
+}
+```
+
+### Within-Bout Sample Completeness
+
+This check verifies that the expected number of samples were collected within each bout.
+
+```{r within bout completeness}
+# Run within-bout completeness check with correct parameters
+fsp.within.bout.samples <- complete_within_bout(input.df = fsp_sampleMetadata_noDups,
+                                                mod = "fsp",
+                                                event.var = "eventID",
+                                                table.name = "fsp_sampleMetadata_pub",
+                                                type = "record")
+
+# Display results
+print(paste("Total bouts checked:", nrow(fsp.within.bout.samples$complete_within_bout_all)))
+print(paste("Bouts flagged for incorrect count:", nrow(fsp.within.bout.samples$complete_within_bout_flags)))
+```
+
+#### Within-Bout Completeness Results {.tabset .tabset-fade .tabset-pills}
+
+##### All Bouts
+
+```{r within bout all}
+DT::datatable(fsp.within.bout.samples$complete_within_bout_all, options = dtOptions)
+```
+
+##### Flagged Bouts
+
+```{r within bout flags}
+if(nrow(fsp.within.bout.samples$complete_within_bout_flags) > 0){
+  DT::datatable(fsp.within.bout.samples$complete_within_bout_flags, options = dtOptions)
+} else {
+  cat("No bouts flagged for incorrect sample count")
+}
+```
+
+##### Summary
+
+```{r within bout summary}
+DT::datatable(fsp.within.bout.samples$complete_within_bout_summary, options = dtOptions)
+```
+
+### Within-Record Completeness
+
+This section checks that all required fields are populated in each table. Since FSP tables are not in long format, we'll check for missing required fields directly.
+
+```{r within record completeness}
+# For FSP tables, we need to check required fields are not NA
+# Define required fields for each table based on fsp_QAQC_checks.csv
+required_fields_bout <- c("eventID", "siteID", "collectDate")
+required_fields_sample <- c("sampleID", "eventID", "siteID", "collectDate")
+required_fields_spectral <- c("sampleID", "wavelength", "rawReflectance")
+
+# Check completeness for boutMetadata
+fsp.boutMetadata.missing <- fsp_boutMetadata_noDups %>%
+  mutate(missing_fields = apply(.[required_fields_bout], 1, function(x) sum(is.na(x)))) %>%
+  filter(missing_fields > 0)
+
+# Check completeness for sampleMetadata
+fsp.sampleMetadata.missing <- fsp_sampleMetadata_noDups %>%
+  mutate(missing_fields = apply(.[required_fields_sample], 1, function(x) sum(is.na(x)))) %>%
+  filter(missing_fields > 0)
+
+# Check completeness for spectralData
+fsp.spectralData.missing <- fsp_spectralData_noDups %>%
+  mutate(missing_fields = apply(.[required_fields_spectral], 1, function(x) sum(is.na(x)))) %>%
+  filter(missing_fields > 0)
+
+# Create output format similar to complete_within_rec function
+fsp.boutMetadata.within.rec <- list(
+  all = fsp_boutMetadata_noDups,
+  flagged = fsp.boutMetadata.missing,
+  summary = data.frame(
+    Table = "fsp_boutMetadata_pub",
+    Total_Records = nrow(fsp_boutMetadata_noDups),
+    Records_With_Missing_Fields = nrow(fsp.boutMetadata.missing)
+  )
+)
+
+fsp.sampleMetadata.within.rec <- list(
+  all = fsp_sampleMetadata_noDups,
+  flagged = fsp.sampleMetadata.missing,
+  summary = data.frame(
+    Table = "fsp_sampleMetadata_pub",
+    Total_Records = nrow(fsp_sampleMetadata_noDups),
+    Records_With_Missing_Fields = nrow(fsp.sampleMetadata.missing)
+  )
+)
+
+fsp.spectralData.within.rec <- list(
+  all = fsp_spectralData_noDups,
+  flagged = fsp.spectralData.missing,
+  summary = data.frame(
+    Table = "fsp_spectralData_pub",
+    Total_Records = nrow(fsp_spectralData_noDups),
+    Records_With_Missing_Fields = nrow(fsp.spectralData.missing)
+  )
+)
+
+# Display summary
+print("Within-record completeness summary:")
+print(paste("Bout metadata records with missing fields:", nrow(fsp.boutMetadata.within.rec$flagged)))
+print(paste("Sample metadata records with missing fields:", nrow(fsp.sampleMetadata.within.rec$flagged)))
+print(paste("Spectral data records with missing fields:", nrow(fsp.spectralData.within.rec$flagged)))
+```
+
+#### Within-Record Completeness Results {.tabset .tabset-fade .tabset-pills}
+
+##### Bout Metadata
+
+```{r within rec bout}
+if(nrow(fsp.boutMetadata.within.rec$flagged) > 0){
+  DT::datatable(fsp.boutMetadata.within.rec$flagged, options = dtOptions)
+} else {
+  cat("No bout metadata records with missing required fields")
+}
+```
+
+##### Sample Metadata
+
+```{r within rec sample}
+if(nrow(fsp.sampleMetadata.within.rec$flagged) > 0){
+  DT::datatable(fsp.sampleMetadata.within.rec$flagged, options = dtOptions)
+} else {
+  cat("No sample metadata records with missing required fields")
+}
+```
+
+##### Spectral Data
+
+```{r within rec spectral}
+if(nrow(fsp.spectralData.within.rec$flagged) > 0){
+  DT::datatable(fsp.spectralData.within.rec$flagged, options = dtOptions)
+} else {
+  cat("No spectral data records with missing required fields")
+}
+```
+
+### Cross-Table Completeness: FSP to CFC
+
+This check verifies that FSP sampleIDs match sampleIDs from the CFC collection list.
+
+```{r cross table completeness}
+if(cfc_available && exists("cfc_fieldData")){
+  # Run cross-table completeness check with correct parameters
+  fsp.cross.table.cfc.to.fsp <- complete_cross_table(
+    parent.input.df = cfc_fieldData,
+    child.input.df = fsp_sampleMetadata_noDups,
+    parent.date.var = "collectDate",
+    parent.id.var = "sampleID",
+    child.id.var = "sampleID",
+    exact.id.match = FALSE,
+    filter.sampling.impractical = TRUE
+  )
+  
+  # Display results
+  print(paste("CFC samples checked:", nrow(fsp.cross.table.cfc.to.fsp$complete_cross_table_all)))
+  print(paste("CFC samples not found in FSP:", nrow(fsp.cross.table.cfc.to.fsp$complete_cross_table_flags)))
+} else {
+  print("CFC data not available for cross-table completeness check")
+  fsp.cross.table.cfc.to.fsp <- list(
+    complete_cross_table_all = data.frame(),
+    complete_cross_table_flags = data.frame(),
+    complete_cross_table_summary = data.frame(Check = "Cross-table CFC to FSP", Result = "CFC data not available")
+  )
+}
+```
+
+#### Cross-Table Completeness Results {.tabset .tabset-fade .tabset-pills}
+
+##### All CFC Samples
+
+```{r cross table all}
+if(nrow(fsp.cross.table.cfc.to.fsp$complete_cross_table_all) > 0){
+  DT::datatable(fsp.cross.table.cfc.to.fsp$complete_cross_table_all, options = dtOptions)
+} else {
+  cat("No cross-table data to display")
+}
+```
+
+##### Flagged Samples
+
+```{r cross table flags}
+if(nrow(fsp.cross.table.cfc.to.fsp$complete_cross_table_flags) > 0){
+  DT::datatable(fsp.cross.table.cfc.to.fsp$complete_cross_table_flags, options = dtOptions)
+} else {
+  cat("No CFC samples flagged as missing from FSP")
+}
+```
+
+##### Summary
+
+```{r cross table summary}
+DT::datatable(fsp.cross.table.cfc.to.fsp$complete_cross_table_summary, options = dtOptions)
+```
+
+### Band Count Completeness
+
+This custom check verifies that each spectral sample has the expected 426 bands.
+
+```{r band count completeness}
+# Custom band count check for spectral data
+# This would use complete_within_bout if properly configured in lookup tables
+# For now, implementing as custom check per fsp_QAQC_checks.csv
+
+# Count bands per sample
+band_counts <- fsp_spectralData_noDups %>%
+  group_by(sampleID) %>%
+  summarise(
+    band_count = n(),
+    expected_bands = 426,
+    complete = band_count == 426
+  ) %>%
+  ungroup()
+
+# Flag incomplete samples
+fsp.band.count.completeness <- list(
+  all_data = band_counts,
+  flagged = band_counts %>% filter(!complete),
+  summary = data.frame(
+    Check = "Band count completeness",
+    Total_Samples = nrow(band_counts),
+    Complete_Samples = sum(band_counts$complete),
+    Incomplete_Samples = sum(!band_counts$complete)
+  )
+)
+
+print(paste("Samples with incorrect band count:", nrow(fsp.band.count.completeness$flagged)))
+```
+
+#### Band Count Completeness Results {.tabset .tabset-fade .tabset-pills}
+
+##### All Samples
+
+```{r band count all}
+DT::datatable(fsp.band.count.completeness$all_data, options = dtOptions)
+```
+
+##### Flagged Samples
+
+```{r band count flagged}
+if(nrow(fsp.band.count.completeness$flagged) > 0){
+  DT::datatable(fsp.band.count.completeness$flagged, options = dtOptions)
+} else {
+  cat("All samples have the expected 426 bands")
+}
+```
+
+## Timeliness
+
+This section checks whether data were collected and processed within expected time windows.
+
+### Bout Duration Check
+
+This check verifies that FSP bouts were completed within expected duration windows.
+
+```{r bout duration timeliness}
+# Run bout duration timeliness check with correct parameters
+fsp.bout.duration.timeliness <- timely_bout_duration(
+  input.df = fsp_sampleMetadata_noDups,
+  bout.var = "eventID",
+  date.var = "collectDate",
+  duration = 30,  # 30-day maximum duration per fsp_QAQC_checks.csv
+  fig = TRUE
+)
+
+# Display results
+print(paste("Bouts checked for timeliness:", nrow(fsp.bout.duration.timeliness$timely_bout_duration_all)))
+print(paste("Bouts flagged for duration issues:", nrow(fsp.bout.duration.timeliness$timely_bout_duration_flags)))
+```
+
+#### Bout Duration Results {.tabset .tabset-fade .tabset-pills}
+
+##### All Bouts
+
+```{r bout duration all}
+DT::datatable(fsp.bout.duration.timeliness$timely_bout_duration_all, options = dtOptions)
+```
+
+##### Flagged Bouts
+
+```{r bout duration flags}
+if(nrow(fsp.bout.duration.timeliness$timely_bout_duration_flags) > 0){
+  DT::datatable(fsp.bout.duration.timeliness$timely_bout_duration_flags, options = dtOptions)
+} else {
+  cat("No bouts flagged for duration issues")
+}
+```
+
+##### Summary
+
+```{r bout duration summary}
+DT::datatable(fsp.bout.duration.timeliness$timely_bout_duration_summary, options = dtOptions)
+```
+
+##### Figure
+
+```{r bout duration figure, eval=exists("fsp.bout.duration.timeliness$timely_bout_duration_figure")}
+if(!is.null(fsp.bout.duration.timeliness$timely_bout_duration_figure)){
+  print(fsp.bout.duration.timeliness$timely_bout_duration_figure)
+}
+```
+
+## Plausibility
+
+This section checks whether data values fall within expected ranges and follow expected patterns.
+
+### Reflectance Range Check
+
+This custom check verifies that all reflectance values are within the range 0.0 - 1.0.
+
+```{r reflectance range check}
+# Custom reflectance range check
+reflectance_check <- fsp_spectralData_noDups %>%
+  mutate(
+    reflectance_valid = rawReflectance >= 0.0 & rawReflectance <= 1.0,
+    flag_description = case_when(
+      rawReflectance < 0.0 ~ "Reflectance below 0.0",
+      rawReflectance > 1.0 ~ "Reflectance above 1.0",
+      TRUE ~ NA_character_
+    )
+  )
+
+# Summarize by sample
+reflectance_summary <- reflectance_check %>%
+  group_by(sampleID) %>%
+  summarise(
+    total_measurements = n(),
+    valid_measurements = sum(reflectance_valid),
+    invalid_measurements = sum(!reflectance_valid),
+    min_reflectance = min(rawReflectance, na.rm = TRUE),
+    max_reflectance = max(rawReflectance, na.rm = TRUE)
+  ) %>%
+  mutate(all_valid = invalid_measurements == 0)
+
+fsp.reflectance.range <- list(
+  all_data = reflectance_summary,
+  flagged = reflectance_summary %>% filter(!all_valid),
+  flagged_measurements = reflectance_check %>% filter(!reflectance_valid),
+  summary = data.frame(
+    Check = "Reflectance range (0-1)",
+    Total_Samples = nrow(reflectance_summary),
+    Valid_Samples = sum(reflectance_summary$all_valid),
+    Invalid_Samples = sum(!reflectance_summary$all_valid),
+    Total_Measurements = nrow(reflectance_check),
+    Invalid_Measurements = sum(!reflectance_check$reflectance_valid)
+  )
+)
+
+print(paste("Samples with out-of-range reflectance:", nrow(fsp.reflectance.range$flagged)))
+print(paste("Total out-of-range measurements:", nrow(fsp.reflectance.range$flagged_measurements)))
+```
+
+#### Reflectance Range Results {.tabset .tabset-fade .tabset-pills}
+
+##### Sample Summary
+
+```{r reflectance range summary}
+DT::datatable(fsp.reflectance.range$all_data, options = dtOptions)
+```
+
+##### Flagged Samples
+
+```{r reflectance range flagged}
+if(nrow(fsp.reflectance.range$flagged) > 0){
+  DT::datatable(fsp.reflectance.range$flagged, options = dtOptions)
+} else {
+  cat("All samples have reflectance values within valid range")
+}
+```
+
+##### Invalid Measurements
+
+```{r reflectance range measurements}
+if(nrow(fsp.reflectance.range$flagged_measurements) > 0){
+  DT::datatable(fsp.reflectance.range$flagged_measurements %>% 
+                  select(sampleID, wavelength, rawReflectance, flag_description) %>%
+                  head(1000), # Limit display to first 1000 rows
+                options = dtOptions)
+} else {
+  cat("No invalid reflectance measurements found")
+}
+```
+
+### Wavelength Range Check
+
+This custom check verifies that all wavelength values are within the range 300 - 2600 nm.
+
+```{r wavelength range check}
+# Custom wavelength range check
+wavelength_check <- fsp_spectralData_noDups %>%
+  mutate(
+    wavelength_valid = wavelength >= 300 & wavelength <= 2600,
+    flag_description = case_when(
+      wavelength < 300 ~ "Wavelength below 300 nm",
+      wavelength > 2600 ~ "Wavelength above 2600 nm",
+      TRUE ~ NA_character_
+    )
+  )
+
+# Summarize
+wavelength_summary <- wavelength_check %>%
+  summarise(
+    total_measurements = n(),
+    valid_measurements = sum(wavelength_valid),
+    invalid_measurements = sum(!wavelength_valid),
+    min_wavelength = min(wavelength, na.rm = TRUE),
+    max_wavelength = max(wavelength, na.rm = TRUE),
+    unique_wavelengths = n_distinct(wavelength)
+  )
+
+fsp.wavelength.range <- list(
+  flagged_measurements = wavelength_check %>% filter(!wavelength_valid),
+  summary = wavelength_summary
+)
+
+print(paste("Invalid wavelength measurements:", nrow(fsp.wavelength.range$flagged_measurements)))
+```
+
+#### Wavelength Range Results {.tabset .tabset-fade .tabset-pills}
+
+##### Summary
+
+```{r wavelength range summary}
+DT::datatable(fsp.wavelength.range$summary, options = dtOptions)
+```
+
+##### Invalid Wavelengths
+
+```{r wavelength range flagged}
+if(nrow(fsp.wavelength.range$flagged_measurements) > 0){
+  DT::datatable(fsp.wavelength.range$flagged_measurements %>%
+                  select(sampleID, wavelength, flag_description) %>%
+                  distinct(),
+                options = dtOptions)
+} else {
+  cat("All wavelength values are within valid range (300-2600 nm)")
+}
+```
+
+### Spectral Ratio Validation
+
+This check verifies that reflectance values at 1000 nm are greater than values at 500 nm (vegetation red edge).
+
+```{r spectral ratio check}
+# Custom spectral ratio check
+# Get reflectance at 500nm and 1000nm for each sample
+spectral_ratios <- fsp_spectralData_noDups %>%
+  filter(wavelength %in% c(500, 1000)) %>%
+  select(sampleID, wavelength, rawReflectance) %>%
+  pivot_wider(names_from = wavelength, 
+              values_from = rawReflectance,
+              names_prefix = "reflectance_") %>%
+  mutate(
+    ratio_valid = reflectance_1000 > reflectance_500,
+    ratio = reflectance_1000 / reflectance_500,
+    flag_description = ifelse(!ratio_valid, 
+                             "Reflectance at 1000nm not greater than 500nm", 
+                             NA_character_)
+  )
+
+fsp.spectral.ratio <- list(
+  all_data = spectral_ratios,
+  flagged = spectral_ratios %>% filter(!ratio_valid | is.na(ratio_valid)),
+  summary = data.frame(
+    Check = "Spectral ratio (1000nm > 500nm)",
+    Total_Samples = nrow(spectral_ratios),
+    Valid_Samples = sum(spectral_ratios$ratio_valid, na.rm = TRUE),
+    Invalid_Samples = sum(!spectral_ratios$ratio_valid | is.na(spectral_ratios$ratio_valid)),
+    Mean_Ratio = mean(spectral_ratios$ratio, na.rm = TRUE),
+    Median_Ratio = median(spectral_ratios$ratio, na.rm = TRUE)
+  )
+)
+
+print(paste("Samples with invalid spectral ratios:", nrow(fsp.spectral.ratio$flagged)))
+```
+
+#### Spectral Ratio Results {.tabset .tabset-fade .tabset-pills}
+
+##### All Samples
+
+```{r spectral ratio all}
+DT::datatable(fsp.spectral.ratio$all_data, options = dtOptions)
+```
+
+##### Flagged Samples
+
+```{r spectral ratio flagged}
+if(nrow(fsp.spectral.ratio$flagged) > 0){
+  DT::datatable(fsp.spectral.ratio$flagged, options = dtOptions)
+} else {
+  cat("All samples have valid spectral ratios (1000nm > 500nm)")
+}
+```
+
+##### Summary
+
+```{r spectral ratio summary}
+DT::datatable(fsp.spectral.ratio$summary, options = dtOptions)
+```
+
+## Outputs
+
+This section saves QC outputs and generates summary information.
+
+```{r create outputs}
+# Create a list of all QC results following skeleton naming conventions
+# Lists use fsp. prefix, dataframes use fsp_ prefix
+
+# Store list outputs (from neonOSqc functions)
+listOuts <- c("fsp.bout.completeness", "fsp.within.bout.samples", 
+              "fsp.cross.table.cfc.to.fsp", "fsp.bout.duration.timeliness")
+
+# Store dataframe outputs (custom checks and duplicates)
+dfOuts <- c("fsp_boutMetadata_dups", "fsp_sampleMetadata_dups", "fsp_spectralData_dups")
+
+# Summary of all checks
+summary_all_checks <- data.frame(
+  Category = c(rep("Duplicates", 3), 
+               rep("Completeness", 6), 
+               rep("Timeliness", 1), 
+               rep("Plausibility", 3)),
+  Check = c("Bout metadata duplicates", "Sample metadata duplicates", "Spectral data duplicates",
+            "Bout completeness", "Within-bout samples", "Bout metadata fields", 
+            "Sample metadata fields", "Spectral data fields", "Band count",
+            "Bout duration", 
+            "Reflectance range", "Wavelength range", "Spectral ratio"),
+  Issues_Found = c(
+    sum(fsp_boutMetadata_pub$duplicateRecordQF == 1),
+    sum(fsp_sampleMetadata_pub$duplicateRecordQF == 1),
+    sum(fsp_spectralData_pub$duplicateRecordQF == 1),
+    nrow(fsp.bout.completeness$complete_bout_flags),
+    nrow(fsp.within.bout.samples$complete_within_bout_flags),
+    nrow(fsp.boutMetadata.within.rec$flagged),
+    nrow(fsp.sampleMetadata.within.rec$flagged),
+    nrow(fsp.spectralData.within.rec$flagged),
+    nrow(fsp.band.count.completeness$flagged),
+    nrow(fsp.bout.duration.timeliness$timely_bout_duration_flags),
+    nrow(fsp.reflectance.range$flagged),
+    nrow(fsp.wavelength.range$flagged_measurements),
+    nrow(fsp.spectral.ratio$flagged)
+  )
+)
+
+# Add cross-table check if CFC data was available
+if(cfc_available && exists("fsp.cross.table.cfc.to.fsp")){
+  cross_table_row <- data.frame(
+    Category = "Completeness",
+    Check = "Cross-table CFC-FSP",
+    Issues_Found = nrow(fsp.cross.table.cfc.to.fsp$complete_cross_table_flags)
+  )
+  summary_all_checks <- rbind(summary_all_checks, cross_table_row)
+}
+
+print("QC Check Summary:")
+print(summary_all_checks)
+```
+
+### Final Summary
+
+```{r final summary}
+DT::datatable(summary_all_checks, options = dtOptions)
+
+# Report metadata
+report_metadata <- data.frame(
+  Parameter = c("Report Date", "Data Start Month", "Data End Month", 
+                "Script Type", "Report Name", "Total Checks Run"),
+  Value = c(Sys.Date(), startDate_checked, endDate_checked, 
+            scriptType, reportName, nrow(summary_all_checks))
+)
+
+DT::datatable(report_metadata, options = dtOptions)
+```
+
+```{r save outputs, include=FALSE}
+# This chunk would save outputs to GCS in production
+# Following skeleton pattern for output naming and storage
+```
