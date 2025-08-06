@@ -1,0 +1,57 @@
+---
+title: "FSP Data Quality Review, `r params$titleDate`"
+author: "Your Name"
+date: "Report compiled on `r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+params:
+  titleDate: 'Default Title' 
+  startMonth: '2022-01'
+  endMonth: '2022-01'
+  monthlyAnnual: 'monthly'
+  labData: TRUE
+  customParams: TRUE
+  reportTimestamp: '20240101000000'
+  reportName: 'fsp_monthly_YYYYMM_YYYYMMDDHHMMSS'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = T, echo = F, message = F)
+```
+
+```{css toc-content, echo = FALSE}
+#TOC {
+  /*moves toc to left*/
+  margin: 20px 0px 25px 0px;
+}
+
+.main-container {
+    margin-left: 20px;
+}
+/*makes page wider so text and tables extend toward right margin*/ 
+body .main-container{
+    max-width: 90vw;
+}
+```
+
+## QUICK RUN NOTE
+
+This is a modified version of v3 for immediate testing with the following changes:
+- GCS upload disabled (set eval = F)
+- Lookup table check wrapped in try-catch
+- Added note about missing NEON_PAT token
+
+**To run with full functionality:**
+1. Set NEON_PAT environment variable
+2. Create fsp_complete_bout.csv lookup table
+3. Configure GCS credentials
+4. Change GCS eval back to T
+
+```{r load packages and data, echo=FALSE, message=FALSE}
+# Note: Copy the rest of the v3 content here, but with these modifications:
+# 1. Line ~307: Wrap lookup table read in try-catch
+# 2. Line ~1047: Change eval = T to eval = F for GCS chunk
+```

@@ -1,0 +1,398 @@
+---
+title: "FSP NDVI Analysis Report"
+subtitle: "Spectral Analysis for 2019-2024"
+author: "NEON FSP Analysis"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    highlight: tango
+    code_folding: hide
+    fig_width: 10
+    fig_height: 6
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6
+)
+
+# Load required packages
+library(neonUtilities)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(DT)
+library(knitr)
+library(kableExtra)
+library(scales)
+
+# Source the QAQC functions if available
+if(file.exists("fsp_ndvi_qaqc_functions.R")) {
+  source("fsp_ndvi_qaqc_functions.R")
+}
+```
+
+## Executive Summary
+
+This report presents a comprehensive analysis of NDVI (Normalized Difference Vegetation Index) calculations from NEON FSP (Field Spectral) data collected between 2022-2024. The analysis includes:
+
+- **NDVI calculations** using red (670 nm) and NIR (800 nm) reflectance bands
+- **Spectral quality assessment** of downloaded CSV files
+- **Temporal and spatial patterns** across NEON sites
+- **Data quality assessment** and error analysis
+
+## Data Processing
+
+```{r data_processing, echo=FALSE, results='hide'}
+# Set date range
+startDate_checked <- "2019-01"
+endDate_checked <- "2024-12"
+
+# Load FSP data with error handling
+cat("Loading FSP data for date range:", startDate_checked, "to", endDate_checked, "\n")
+
+fsp_data_loaded <- FALSE
+tryCatch({
+  fsp_data <- neonUtilities::loadByProduct(
+    dpID = "DP1.30012.001", 
+    site = "all", 
+    startdate = startDate_checked, 
+    enddate = endDate_checked,
+    package = "expanded",
+    check.size = FALSE,
+    token = Sys.getenv('NEON_PAT')
+  )
+  
+  # Extract tables
+  fsp_spectralData <- fsp_data$fsp_spectralData
+  fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+  fsp_boutMetadata <- fsp_data$fsp_boutMetadata
+  
+  fsp_data_loaded <- TRUE
+  cat("Successfully loaded FSP data\n")
+}, error = function(e) {
+  cat("Error loading NEON data:", e$message, "\n")
+  cat("Trying with a single site (HARV) for 2023 as fallback...\n")
+  
+  tryCatch({
+    fsp_data <- neonUtilities::loadByProduct(
+      dpID = "DP1.30012.001", 
+      site = "HARV", 
+      startdate = "2023-01", 
+      enddate = "2023-12",
+      package = "expanded",
+      check.size = FALSE
+    )
+    
+    fsp_spectralData <- fsp_data$fsp_spectralData
+    fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+    fsp_boutMetadata <- fsp_data$fsp_boutMetadata
+    
+    fsp_data_loaded <- TRUE
+    cat("Successfully loaded fallback data from HARV\n")
+  }, error = function(e2) {
+    cat("Fallback also failed:", e2$message, "\n")
+    fsp_spectralData <- data.frame()
+    fsp_sampleMetadata <- data.frame()
+    fsp_boutMetadata <- data.frame()
+  })
+})
+```
+
+## Data Loading Status
+
+```{r data_status, echo=FALSE}
+# Check data loading status
+if(fsp_data_loaded && exists("fsp_spectralData") && nrow(fsp_spectralData) > 0) {
+  cat("**Data Loading Status:** SUCCESS\n\n")
+  cat("### Data Summary:\n")
+  cat("- FSP spectral records:", nrow(fsp_spectralData), "\n")
+  cat("- FSP sample metadata records:", nrow(fsp_sampleMetadata), "\n")
+  cat("- FSP bout metadata records:", nrow(fsp_boutMetadata), "\n")
+  
+  if("collectDate" %in% names(fsp_sampleMetadata)) {
+    date_range <- range(fsp_sampleMetadata$collectDate, na.rm = TRUE)
+    cat("- Date range:", date_range[1], "to", date_range[2], "\n")
+  }
+  
+  if("siteID" %in% names(fsp_sampleMetadata)) {
+    cat("- Number of sites:", length(unique(fsp_sampleMetadata$siteID)), "\n")
+    cat("- Sites:", paste(unique(fsp_sampleMetadata$siteID), collapse = ", "), "\n")
+  }
+} else {
+  cat("**Data Loading Status:** FAILED\n\n")
+  cat("### Troubleshooting:\n")
+  cat("- Check your internet connection\n")
+  cat("- Verify NEON_PAT token is set if using one\n")
+  cat("- Try a more recent date range (e.g., 2023-2024)\n")
+  cat("- Try a specific site instead of 'all'\n")
+}
+```
+
+## NDVI Processing
+
+```{r ndvi_processing, echo=FALSE}
+# Initialize results
+ndvi_results <- data.frame()
+download_errors <- data.frame()
+
+if(fsp_data_loaded && nrow(fsp_spectralData) > 0) {
+  cat("\n### Processing spectral data files...\n")
+  
+  # Get unique spectral samples with download URLs
+  spectral_samples <- fsp_spectralData %>%
+    filter(!is.na(downloadFileUrl)) %>%
+    select(spectralSampleID, downloadFileUrl) %>%
+    distinct()
+  
+  # Join with sample metadata to get site and date info
+  samples_to_process <- spectral_samples %>%
+    left_join(fsp_sampleMetadata %>% 
+              select(spectralSampleID, siteID, collectDate, eventID) %>%
+              distinct(), 
+              by = "spectralSampleID")
+  
+  cat("Found", nrow(samples_to_process), "spectral samples to process\n")
+  
+  # Process first 10 samples as demonstration (to avoid timeout)
+  n_samples <- min(10, nrow(samples_to_process))
+  cat("Processing first", n_samples, "samples as demonstration...\n")
+  
+  for(i in 1:n_samples) {
+    sample <- samples_to_process[i,]
+    
+    tryCatch({
+      # Download CSV file
+      temp_file <- tempfile(fileext = ".csv")
+      download.file(sample$downloadFileUrl, temp_file, quiet = TRUE, mode = "wb")
+      
+      # Read spectral data
+      csv_data <- read.csv(temp_file, stringsAsFactors = FALSE)
+      
+      # Check if wavelength and reflectance columns exist
+      if(all(c("wavelength", "reflectance") %in% names(csv_data))) {
+        # Extract red band (around 670 nm)
+        red_data <- csv_data %>%
+          filter(wavelength >= 660 & wavelength <= 680) %>%
+          summarise(red_reflectance = mean(reflectance, na.rm = TRUE))
+        
+        # Extract NIR band (around 800 nm)
+        nir_data <- csv_data %>%
+          filter(wavelength >= 790 & wavelength <= 810) %>%
+          summarise(nir_reflectance = mean(reflectance, na.rm = TRUE))
+        
+        # Calculate NDVI
+        if(!is.na(red_data$red_reflectance) && !is.na(nir_data$nir_reflectance)) {
+          ndvi <- (nir_data$nir_reflectance - red_data$red_reflectance) / 
+                  (nir_data$nir_reflectance + red_data$red_reflectance)
+          
+          # Extract spectral ratio bands
+          lower_data <- csv_data %>%
+            filter(wavelength >= 495 & wavelength <= 505) %>%
+            summarise(lower_reflectance = mean(reflectance, na.rm = TRUE))
+          
+          higher_data <- csv_data %>%
+            filter(wavelength >= 995 & wavelength <= 1005) %>%
+            summarise(higher_reflectance = mean(reflectance, na.rm = TRUE))
+          
+          # Add to results
+          ndvi_results <- rbind(ndvi_results, data.frame(
+            spectralSampleID = sample$spectralSampleID,
+            siteID = sample$siteID,
+            collectDate = sample$collectDate,
+            eventID = sample$eventID,
+            red_reflectance = red_data$red_reflectance,
+            nir_reflectance = nir_data$nir_reflectance,
+            ndvi = ndvi,
+            lower_reflectance = lower_data$lower_reflectance,
+            higher_reflectance = higher_data$higher_reflectance,
+            spectral_ratio = ifelse(!is.na(higher_data$higher_reflectance) && !is.na(lower_data$lower_reflectance),
+                                   higher_data$higher_reflectance / lower_data$lower_reflectance, NA),
+            n_wavelengths = nrow(csv_data),
+            min_wavelength = min(csv_data$wavelength, na.rm = TRUE),
+            max_wavelength = max(csv_data$wavelength, na.rm = TRUE),
+            processing_status = "SUCCESS"
+          ))
+        }
+      }
+      
+      # Clean up
+      unlink(temp_file)
+      
+    }, error = function(e) {
+      download_errors <- rbind(download_errors, data.frame(
+        spectralSampleID = sample$spectralSampleID,
+        error = as.character(e$message)
+      ))
+    })
+  }
+  
+  cat("\nProcessing complete.\n")
+  cat("- Successfully processed:", nrow(ndvi_results), "samples\n")
+  cat("- Download errors:", nrow(download_errors), "samples\n")
+}
+```
+
+## Results Summary
+
+```{r results_summary, echo=FALSE}
+if(nrow(ndvi_results) > 0) {
+  # Summary statistics
+  cat("### NDVI Statistics\n")
+  ndvi_summary <- ndvi_results %>%
+    summarise(
+      n_samples = n(),
+      mean_ndvi = mean(ndvi, na.rm = TRUE),
+      sd_ndvi = sd(ndvi, na.rm = TRUE),
+      min_ndvi = min(ndvi, na.rm = TRUE),
+      max_ndvi = max(ndvi, na.rm = TRUE),
+      median_ndvi = median(ndvi, na.rm = TRUE)
+    )
+  
+  kable(ndvi_summary, digits = 3) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"))
+  
+  # Site summary
+  cat("\n### NDVI by Site\n")
+  site_summary <- ndvi_results %>%
+    group_by(siteID) %>%
+    summarise(
+      n_samples = n(),
+      mean_ndvi = mean(ndvi, na.rm = TRUE),
+      sd_ndvi = sd(ndvi, na.rm = TRUE)
+    ) %>%
+    arrange(desc(mean_ndvi))
+  
+  kable(site_summary, digits = 3) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"))
+  
+} else {
+  cat("No NDVI results available. Please check:\n")
+  cat("- Data loading status above\n")
+  cat("- Internet connectivity for downloading spectral CSV files\n")
+  cat("- Date range contains data with spectral measurements\n")
+}
+```
+
+## Visualizations
+
+```{r visualizations, echo=FALSE, fig.height=8}
+if(nrow(ndvi_results) > 0) {
+  # NDVI distribution
+  p1 <- ggplot(ndvi_results, aes(x = ndvi)) +
+    geom_histogram(bins = 30, fill = "forestgreen", alpha = 0.7) +
+    geom_vline(aes(xintercept = mean(ndvi, na.rm = TRUE)), 
+               color = "red", linetype = "dashed", size = 1) +
+    labs(title = "Distribution of NDVI Values",
+         x = "NDVI",
+         y = "Count") +
+    theme_minimal()
+  
+  print(p1)
+  
+  # NDVI by site
+  if(length(unique(ndvi_results$siteID)) > 1) {
+    p2 <- ggplot(ndvi_results, aes(x = reorder(siteID, ndvi, median), y = ndvi)) +
+      geom_boxplot(fill = "lightgreen", alpha = 0.7) +
+      coord_flip() +
+      labs(title = "NDVI Distribution by Site",
+           x = "Site ID",
+           y = "NDVI") +
+      theme_minimal()
+    
+    print(p2)
+  }
+  
+  # Time series if enough data
+  if("collectDate" %in% names(ndvi_results)) {
+    ndvi_results$date <- as.Date(ndvi_results$collectDate)
+    
+    p3 <- ggplot(ndvi_results, aes(x = date, y = ndvi, color = siteID)) +
+      geom_point(alpha = 0.6) +
+      geom_smooth(method = "loess", se = FALSE) +
+      labs(title = "NDVI Over Time",
+           x = "Collection Date",
+           y = "NDVI") +
+      theme_minimal() +
+      theme(legend.position = "bottom")
+    
+    print(p3)
+  }
+}
+```
+
+## Data Quality Assessment
+
+```{r quality_assessment, echo=FALSE}
+if(nrow(ndvi_results) > 0) {
+  # Check spectral quality
+  quality_summary <- ndvi_results %>%
+    mutate(
+      ndvi_valid = ndvi >= -1 & ndvi <= 1,
+      red_valid = red_reflectance >= 0 & red_reflectance <= 1,
+      nir_valid = nir_reflectance >= 0 & nir_reflectance <= 1,
+      wavelength_range_valid = (max_wavelength - min_wavelength) > 2000
+    ) %>%
+    summarise(
+      total_samples = n(),
+      ndvi_valid_pct = mean(ndvi_valid, na.rm = TRUE) * 100,
+      red_valid_pct = mean(red_valid, na.rm = TRUE) * 100,
+      nir_valid_pct = mean(nir_valid, na.rm = TRUE) * 100,
+      wavelength_range_valid_pct = mean(wavelength_range_valid, na.rm = TRUE) * 100
+    )
+  
+  cat("### Quality Metrics\n")
+  kable(quality_summary, digits = 1, 
+        col.names = c("Total Samples", "Valid NDVI %", "Valid Red %", "Valid NIR %", "Valid Wavelength Range %")) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"))
+  
+  # Spectral ratio validation
+  if("spectral_ratio" %in% names(ndvi_results)) {
+    ratio_summary <- ndvi_results %>%
+      filter(!is.na(spectral_ratio)) %>%
+      summarise(
+        n_ratios = n(),
+        mean_ratio = mean(spectral_ratio, na.rm = TRUE),
+        ratios_above_1 = sum(spectral_ratio > 1, na.rm = TRUE),
+        pct_above_1 = mean(spectral_ratio > 1, na.rm = TRUE) * 100
+      )
+    
+    cat("\n### Spectral Ratio Validation (995-1005nm / 495-505nm)\n")
+    kable(ratio_summary, digits = 2,
+          col.names = c("Samples with Ratio", "Mean Ratio", "Ratios > 1", "% Above 1")) %>%
+      kable_styling(bootstrap_options = c("striped", "hover"))
+  }
+}
+```
+
+## Detailed Results Table
+
+```{r detailed_results, echo=FALSE}
+if(nrow(ndvi_results) > 0) {
+  # Select key columns for display
+  display_results <- ndvi_results %>%
+    select(spectralSampleID, siteID, collectDate, ndvi, red_reflectance, 
+           nir_reflectance, spectral_ratio, n_wavelengths) %>%
+    arrange(desc(ndvi))
+  
+  DT::datatable(display_results,
+                options = list(pageLength = 10, scrollX = TRUE),
+                caption = "Detailed NDVI Results (sorted by NDVI descending)") %>%
+    formatRound(columns = c("ndvi", "red_reflectance", "nir_reflectance", "spectral_ratio"), 
+                digits = 3)
+}
+```
+
+## Session Information
+
+```{r session_info, echo=FALSE}
+sessionInfo()
+```

@@ -73,51 +73,55 @@ if(exists("fsp_spectralData") && is.data.frame(fsp_spectralData) && nrow(fsp_spe
     } else {
       cat("FSP spectral data available but date range (", min_year, "-", max_year, ") doesn't overlap with desired range (2019-2024). Loading fresh data.\n")
       # Load FSP data for the specified date range
-      fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.10026.001", 
+      fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.30012.001", 
                                               site = "all", 
                                               startdate = startDate_checked, 
                                               enddate = endDate_checked,
-                                              package = "basic",
+                                              package = "expanded",
                                               check.size = FALSE)
       fsp_spectralData <- fsp_data$fsp_spectralData
       fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+      fsp_boutMetadata <- fsp_data$fsp_boutMetadata
     }
   } else {
     cat("FSP spectral data available but missing collectDate column. Loading fresh data.\n")
     # Load FSP data for the specified date range
-    fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.10026.001", 
+    fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.30012.001", 
                                             site = "all", 
                                             startdate = startDate_checked, 
                                             enddate = endDate_checked,
-                                            package = "basic",
+                                            package = "expanded",
                                             check.size = FALSE)
     fsp_spectralData <- fsp_data$fsp_spectralData
     fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+    fsp_boutMetadata <- fsp_data$fsp_boutMetadata
   }
 } else {
   cat("FSP spectral data not found in environment. Loading data for 2022-2024.\n")
   # Load FSP data for the specified date range with error handling
   tryCatch({
-    fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.10026.001", 
+    fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.30012.001", 
                                             site = "all", 
                                             startdate = startDate_checked, 
                                             enddate = endDate_checked,
-                                            package = "basic",
+                                            package = "expanded",
                                             check.size = FALSE)
     fsp_spectralData <- fsp_data$fsp_spectralData
     fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+    fsp_boutMetadata <- fsp_data$fsp_boutMetadata
   }, error = function(e) {
     cat("Error loading NEON data: ", e$message, "\n")
     cat("Trying with a single site (HARV) as fallback...\n")
     tryCatch({
-      fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.10026.001", 
+      fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.30012.001", 
                                               site = "HARV", 
                                               startdate = "2023-01", 
                                               enddate = "2023-12",
-                                              package = "basic",
+                                              package = "expanded",
                                               check.size = FALSE)
       fsp_spectralData <- fsp_data$fsp_spectralData
       fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+      fsp_boutMetadata <- fsp_data$fsp_boutMetadata
     }, error = function(e2) {
       cat("Fallback also failed: ", e2$message, "\n")
       fsp_spectralData <- data.frame()
