@@ -1,0 +1,923 @@
+---
+title: "FSP NDVI Analysis Report"
+subtitle: "Spectral Analysis for 2019-2024"
+author: "NEON FSP Analysis"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    highlight: tango
+    code_folding: hide
+    fig_width: 10
+    fig_height: 6
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6
+)
+
+# Load required packages
+library(neonUtilities)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(DT)
+library(knitr)
+library(kableExtra)
+library(scales)
+
+# Source the QAQC functions
+source("fsp_ndvi_qaqc_functions.R")
+```
+
+## Executive Summary
+
+This report presents a comprehensive analysis of NDVI (Normalized Difference Vegetation Index) calculations from NEON FSP (Foliar Physiochemistry) spectral data collected between 2019-2024. The analysis includes:
+
+- **NDVI calculations** using red (630-680 nm) and NIR (775-825 nm) reflectance bands
+- **Spectral ratio analysis** comparing 995-1005 nm vs 495-505 nm reflectance
+- **Temporal and spatial patterns** across NEON sites
+- **NLCD-based ecological analysis** using land cover classifications
+- **Site-specific quality assessment** with ecological context
+- **Data quality assessment** and error analysis
+
+
+
+## Data Processing
+
+```{r data_processing, echo=FALSE, results='hide'}
+# Set date range for 2022-2024 (more recent data that's more likely to be available)
+startDate_checked <- "2019-01"
+endDate_checked <- "2024-12"
+
+# Check if FSP spectral data is already available in the environment with correct date range
+if(exists("fsp_spectralData") && is.data.frame(fsp_spectralData) && nrow(fsp_spectralData) > 0) {
+  # Check if data covers the desired date range
+  if("collectDate" %in% names(fsp_spectralData)) {
+    # Extract years from collectDate
+    data_years <- as.numeric(substr(fsp_spectralData$collectDate, 1, 4))
+    min_year <- min(data_years, na.rm = TRUE)
+    max_year <- max(data_years, na.rm = TRUE)
+    
+    # Check if data covers any part of the desired range (2019-2024)
+    if(min_year <= 2024 && max_year >= 2019) {
+      cat("FSP spectral data already available in environment with date range (", min_year, "-", max_year, "). Using existing data.\n")
+    } else {
+      cat("FSP spectral data available but date range (", min_year, "-", max_year, ") doesn't overlap with desired range (2019-2024). Loading fresh data.\n")
+      # Load FSP data for the specified date range
+      fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.10026.001", 
+                                              site = "all", 
+                                              startdate = startDate_checked, 
+                                              enddate = endDate_checked,
+                                              package = "basic",
+                                              check.size = FALSE)
+      fsp_spectralData <- fsp_data$fsp_spectralData
+      fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+    }
+  } else {
+    cat("FSP spectral data available but missing collectDate column. Loading fresh data.\n")
+    # Load FSP data for the specified date range
+    fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.10026.001", 
+                                            site = "all", 
+                                            startdate = startDate_checked, 
+                                            enddate = endDate_checked,
+                                            package = "basic",
+                                            check.size = FALSE)
+    fsp_spectralData <- fsp_data$fsp_spectralData
+    fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+  }
+} else {
+  cat("FSP spectral data not found in environment. Loading data for 2022-2024.\n")
+  # Load FSP data for the specified date range with error handling
+  tryCatch({
+    fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.10026.001", 
+                                            site = "all", 
+                                            startdate = startDate_checked, 
+                                            enddate = endDate_checked,
+                                            package = "basic",
+                                            check.size = FALSE)
+    fsp_spectralData <- fsp_data$fsp_spectralData
+    fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+  }, error = function(e) {
+    cat("Error loading NEON data: ", e$message, "\n")
+    cat("Trying with a single site (HARV) as fallback...\n")
+    tryCatch({
+      fsp_data <- neonUtilities::loadByProduct(dpID = "DP1.10026.001", 
+                                              site = "HARV", 
+                                              startdate = "2023-01", 
+                                              enddate = "2023-12",
+                                              package = "basic",
+                                              check.size = FALSE)
+      fsp_spectralData <- fsp_data$fsp_spectralData
+      fsp_sampleMetadata <- fsp_data$fsp_sampleMetadata
+    }, error = function(e2) {
+      cat("Fallback also failed: ", e2$message, "\n")
+      fsp_spectralData <- data.frame()
+      fsp_sampleMetadata <- data.frame()
+    })
+  })
+}
+```
+
+## Data Loading Status
+
+```{r data_status, echo=FALSE}
+# Check data loading status
+if(exists("fsp_spectralData")) {
+  if(is.data.frame(fsp_spectralData) && nrow(fsp_spectralData) > 0) {
+    cat("**Data Loading Status:** SUCCESS\n")
+    cat("- FSP spectral data loaded: ", nrow(fsp_spectralData), " samples\n")
+    cat("- Date range: ", min(fsp_spectralData$collectDate, na.rm = TRUE), " to ", max(fsp_spectralData$collectDate, na.rm = TRUE), "\n")
+    cat("- Sites: ", length(unique(fsp_spectralData$siteID)), "\n")
+  } else {
+    cat("**Data Loading Status:** FAILED - Empty dataframe\n")
+  }
+} else {
+  cat("**Data Loading Status:** FAILED - No data loaded\n")
+  cat("- Possible causes: Network issues, NEON service problems, or date range issues\n")
+  cat("- Try running with a more recent date range (e.g., 2022-2024)\n")
+}
+```
+
+## Processing Summary
+
+```{r summary_stats, echo=FALSE}
+# Check if we have data to process
+if(!exists("fsp_spectralData") || is.null(fsp_spectralData) || nrow(fsp_spectralData) == 0) {
+  cat("Error: No FSP spectral data available for processing.\n")
+  total_samples <- 0
+  processed_count <- 0
+  error_count <- 0
+  ndvi_successful <- data.frame()
+} else {
+  # Initialize results dataframe
+  ndvi_results <- data.frame(
+    spectralSampleID = character(),
+    siteID = character(),
+    collectDate = character(),
+    red_avg = numeric(),
+    nir_avg = numeric(),
+    ndvi = numeric(),
+    red_bands_count = integer(),
+    nir_bands_count = integer(),
+    lower_avg = numeric(),
+    higher_avg = numeric(),
+    spectral_ratio = numeric(),
+    ratio_valid = logical(),
+    lower_bands_count = integer(),
+    higher_bands_count = integer(),
+    processing_status = character(),
+    stringsAsFactors = FALSE
+  )
+  
+  # Process each spectral sample
+  total_samples <- nrow(fsp_spectralData)
+  processed_count <- 0
+  error_count <- 0
+
+  for(i in 1:total_samples) {
+    sample_id <- fsp_spectralData$spectralSampleID[i]
+    site_id <- fsp_spectralData$siteID[i]
+    collect_date <- fsp_spectralData$collectDate[i]
+  
+  tryCatch({
+    # Extract spectral data for this sample
+    spectral_data <- fsp_spectralData[i, grep("^[0-9]", names(fsp_spectralData))]
+    
+    # Calculate NDVI (red: 630-680 nm, NIR: 775-825 nm)
+    red_bands <- spectral_data[, names(spectral_data) >= "630" & names(spectral_data) <= "680"]
+    nir_bands <- spectral_data[, names(spectral_data) >= "775" & names(spectral_data) <= "825"]
+    
+    if(ncol(red_bands) > 0 && ncol(nir_bands) > 0) {
+      red_avg <- mean(as.numeric(red_bands), na.rm = TRUE)
+      nir_avg <- mean(as.numeric(nir_bands), na.rm = TRUE)
+      ndvi <- (nir_avg - red_avg) / (nir_avg + red_avg)
+      
+      # Calculate spectral ratio (995-1005 nm vs 495-505 nm)
+      lower_bands <- spectral_data[, names(spectral_data) >= "495" & names(spectral_data) <= "505"]
+      higher_bands <- spectral_data[, names(spectral_data) >= "995" & names(spectral_data) <= "1005"]
+      
+      if(ncol(lower_bands) > 0 && ncol(higher_bands) > 0) {
+        lower_avg <- mean(as.numeric(lower_bands), na.rm = TRUE)
+        higher_avg <- mean(as.numeric(higher_bands), na.rm = TRUE)
+        spectral_ratio <- higher_avg / lower_avg
+        ratio_valid <- higher_avg > lower_avg
+        
+        # Add to results
+        ndvi_results <- rbind(ndvi_results, data.frame(
+          spectralSampleID = sample_id,
+          siteID = site_id,
+          collectDate = collect_date,
+          red_avg = red_avg,
+          nir_avg = nir_avg,
+          ndvi = ndvi,
+          red_bands_count = ncol(red_bands),
+          nir_bands_count = ncol(nir_bands),
+          lower_avg = lower_avg,
+          higher_avg = higher_avg,
+          spectral_ratio = spectral_ratio,
+          ratio_valid = ratio_valid,
+          lower_bands_count = ncol(lower_bands),
+          higher_bands_count = ncol(higher_bands),
+          processing_status = "SUCCESS",
+          stringsAsFactors = FALSE
+        ))
+        processed_count <- processed_count + 1
+      } else {
+        # Add error record
+        ndvi_results <- rbind(ndvi_results, data.frame(
+          spectralSampleID = sample_id,
+          siteID = site_id,
+          collectDate = collect_date,
+          red_avg = NA, nir_avg = NA, ndvi = NA,
+          red_bands_count = ncol(red_bands), nir_bands_count = ncol(nir_bands),
+          lower_avg = NA, higher_avg = NA, spectral_ratio = NA, ratio_valid = NA,
+          lower_bands_count = ncol(lower_bands), higher_bands_count = ncol(higher_bands),
+          processing_status = "SPECTRAL_RATIO_BANDS_MISSING",
+          stringsAsFactors = FALSE
+        ))
+        error_count <- error_count + 1
+      }
+    } else {
+      # Add error record
+      ndvi_results <- rbind(ndvi_results, data.frame(
+        spectralSampleID = sample_id,
+        siteID = site_id,
+        collectDate = collect_date,
+        red_avg = NA, nir_avg = NA, ndvi = NA,
+        red_bands_count = ncol(red_bands), nir_bands_count = ncol(nir_bands),
+        lower_avg = NA, higher_avg = NA, spectral_ratio = NA, ratio_valid = NA,
+        lower_bands_count = NA, higher_bands_count = NA,
+        processing_status = "NDVI_BANDS_MISSING",
+        stringsAsFactors = FALSE
+      ))
+      error_count <- error_count + 1
+    }
+    
+    # Clean up large objects to prevent accidental display
+    rm(spectral_data)
+    
+  }, error = function(e) {
+    # Add error record
+    ndvi_results <<- rbind(ndvi_results, data.frame(
+      spectralSampleID = sample_id,
+      siteID = site_id,
+      collectDate = collect_date,
+      red_avg = NA, nir_avg = NA, ndvi = NA,
+      red_bands_count = NA, nir_bands_count = NA,
+      lower_avg = NA, higher_avg = NA, spectral_ratio = NA, ratio_valid = NA,
+      lower_bands_count = NA, higher_bands_count = NA,
+      processing_status = paste("ERROR:", e$message),
+      stringsAsFactors = FALSE
+    ))
+    error_count <<- error_count + 1
+  })
+  }
+  
+  # Filter successful results
+  ndvi_successful <- ndvi_results %>%
+    filter(processing_status == "SUCCESS" & !is.na(ndvi))
+  
+  # Join with sample metadata to get NLCD information
+  if(exists("fsp_sampleMetadata") && nrow(ndvi_successful) > 0) {
+    ndvi_successful <- ndvi_successful %>%
+      left_join(fsp_sampleMetadata %>% select(spectralSampleID, nlcdClass),
+                by = "spectralSampleID")
+  }
+}
+
+# Create summary statistics
+if(total_samples == 0) {
+  summary_stats <- data.frame(
+    Metric = c("Total samples processed", 
+               "Successfully processed", 
+               "Errors encountered", 
+               "Success rate (%)",
+               "Valid NDVI calculations",
+               "Data loading status"),
+    Value = c("0",
+              "0",
+              "0",
+              "0%",
+              "0",
+              "No data loaded - check NEON connectivity")
+  )
+} else {
+  summary_stats <- data.frame(
+    Metric = c("Total samples processed", 
+               "Successfully processed", 
+               "Errors encountered", 
+               "Success rate (%)",
+               "Valid NDVI calculations"),
+    Value = c(total_samples,
+              processed_count,
+              error_count,
+              round(processed_count/total_samples * 100, 1),
+              nrow(ndvi_successful))
+  )
+}
+
+kable(summary_stats, 
+      col.names = c("Processing Metric", "Count/Percentage"),
+      caption = "Data Processing Summary") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), 
+                full_width = FALSE,
+                position = "left") %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#D7261E")
+```
+
+## NDVI Statistics
+
+```{r ndvi_stats, echo=FALSE}
+if(nrow(ndvi_successful) > 0) {
+  # NDVI statistics
+  ndvi_stats <- data.frame(
+    Statistic = c("Mean NDVI", "Median NDVI", "Min NDVI", "Max NDVI", "SD NDVI"),
+    Value = c(round(mean(ndvi_successful$ndvi, na.rm = TRUE), 4),
+              round(median(ndvi_successful$ndvi, na.rm = TRUE), 4),
+              round(min(ndvi_successful$ndvi, na.rm = TRUE), 4),
+              round(max(ndvi_successful$ndvi, na.rm = TRUE), 4),
+              round(sd(ndvi_successful$ndvi, na.rm = TRUE), 4))
+  )
+  
+  kable(ndvi_stats, 
+        col.names = c("Statistic", "Value"),
+        caption = "NDVI Summary Statistics") %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = FALSE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#2E8B57")
+}
+```
+
+## Spectral Ratio Statistics
+
+```{r spectral_ratio_stats, echo=FALSE}
+if(nrow(ndvi_successful) > 0) {
+  # Spectral ratio statistics
+  spectral_ratio_stats <- data.frame(
+    Statistic = c("Mean spectral ratio (995-1005/495-505)",
+                  "Median spectral ratio",
+                  "Min spectral ratio",
+                  "Max spectral ratio",
+                  "SD spectral ratio",
+                  "Valid ratios (995-1005 > 495-505)",
+                  "Valid ratio percentage (%)"),
+    Value = c(round(mean(ndvi_successful$spectral_ratio, na.rm = TRUE), 4),
+              round(median(ndvi_successful$spectral_ratio, na.rm = TRUE), 4),
+              round(min(ndvi_successful$spectral_ratio, na.rm = TRUE), 4),
+              round(max(ndvi_successful$spectral_ratio, na.rm = TRUE), 4),
+              round(sd(ndvi_successful$spectral_ratio, na.rm = TRUE), 4),
+              sum(ndvi_successful$ratio_valid, na.rm = TRUE),
+              round(sum(ndvi_successful$ratio_valid, na.rm = TRUE)/nrow(ndvi_successful) * 100, 1))
+  )
+  
+  kable(spectral_ratio_stats, 
+        col.names = c("Statistic", "Value"),
+        caption = "Spectral Ratio Summary Statistics") %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = FALSE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#FF8C00")
+}
+```
+
+## NDVI by Site
+
+```{r ndvi_by_site, echo=FALSE}
+if(nrow(ndvi_successful) > 0) {
+  # NDVI by site
+  site_summary_ndvi <- ndvi_successful %>%
+    group_by(siteID) %>%
+    summarise(
+      n_samples = n(),
+      mean_ndvi = mean(ndvi, na.rm = TRUE),
+      median_ndvi = median(ndvi, na.rm = TRUE),
+      min_ndvi = min(ndvi, na.rm = TRUE),
+      max_ndvi = max(ndvi, na.rm = TRUE),
+      sd_ndvi = sd(ndvi, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(desc(n_samples))
+  
+  kable(site_summary_ndvi, 
+        col.names = c("Site ID", "N Samples", "Mean NDVI", "Median NDVI", "Min NDVI", "Max NDVI", "SD NDVI"),
+        caption = "NDVI Statistics by Site",
+        digits = 4) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = TRUE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#2E8B57") %>%
+    scroll_box(width = "100%", height = "400px")
+}
+```
+
+## Spectral Ratio by Site
+
+```{r spectral_ratio_by_site, echo=FALSE}
+if(nrow(ndvi_successful) > 0) {
+  # Spectral ratio by site
+  site_summary_ratio <- ndvi_successful %>%
+    group_by(siteID) %>%
+    summarise(
+      n_samples = n(),
+      mean_ratio = mean(spectral_ratio, na.rm = TRUE),
+      median_ratio = median(spectral_ratio, na.rm = TRUE),
+      min_ratio = min(spectral_ratio, na.rm = TRUE),
+      max_ratio = max(spectral_ratio, na.rm = TRUE),
+      sd_ratio = sd(spectral_ratio, na.rm = TRUE),
+      valid_ratios = sum(ratio_valid, na.rm = TRUE),
+      valid_percentage = round(sum(ratio_valid, na.rm = TRUE)/n() * 100, 1),
+      .groups = "drop"
+    ) %>%
+    arrange(desc(n_samples))
+  
+  kable(site_summary_ratio, 
+        col.names = c("Site ID", "N Samples", "Mean Ratio", "Median Ratio", "Min Ratio", "Max Ratio", "SD Ratio", "Valid Ratios", "Valid %"),
+        caption = "Spectral Ratio Statistics by Site",
+        digits = 4) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = TRUE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#FF8C00") %>%
+    scroll_box(width = "100%", height = "400px")
+}
+```
+
+
+
+## NLCD-Based Analysis
+
+### NDVI by NLCD Class
+
+```{r ndvi_by_nlcd, echo=FALSE}
+if(nrow(ndvi_successful) > 0 && "nlcdClass" %in% names(ndvi_successful)) {
+  # NDVI by NLCD class
+  nlcd_summary_ndvi <- ndvi_successful %>%
+    group_by(nlcdClass) %>%
+    summarise(
+      n_samples = n(),
+      mean_ndvi = mean(ndvi, na.rm = TRUE),
+      median_ndvi = median(ndvi, na.rm = TRUE),
+      min_ndvi = min(ndvi, na.rm = TRUE),
+      max_ndvi = max(ndvi, na.rm = TRUE),
+      sd_ndvi = sd(ndvi, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(desc(n_samples))
+  
+  kable(nlcd_summary_ndvi, 
+        col.names = c("NLCD Class", "N Samples", "Mean NDVI", "Median NDVI", "Min NDVI", "Max NDVI", "SD NDVI"),
+        caption = "NDVI Statistics by NLCD Land Cover Class",
+        digits = 4) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = TRUE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#4B0082") %>%
+    scroll_box(width = "100%", height = "400px")
+}
+```
+
+### Spectral Ratio by NLCD Class
+
+```{r spectral_ratio_by_nlcd, echo=FALSE}
+if(nrow(ndvi_successful) > 0 && "nlcdClass" %in% names(ndvi_successful)) {
+  # Spectral ratio by NLCD class
+  nlcd_summary_ratio <- ndvi_successful %>%
+    group_by(nlcdClass) %>%
+    summarise(
+      n_samples = n(),
+      mean_ratio = mean(spectral_ratio, na.rm = TRUE),
+      median_ratio = median(spectral_ratio, na.rm = TRUE),
+      min_ratio = min(spectral_ratio, na.rm = TRUE),
+      max_ratio = max(spectral_ratio, na.rm = TRUE),
+      sd_ratio = sd(spectral_ratio, na.rm = TRUE),
+      valid_ratios = sum(ratio_valid, na.rm = TRUE),
+      valid_percentage = round(sum(ratio_valid, na.rm = TRUE)/n() * 100, 1),
+      .groups = "drop"
+    ) %>%
+    arrange(desc(n_samples))
+  
+  kable(nlcd_summary_ratio, 
+        col.names = c("NLCD Class", "N Samples", "Mean Ratio", "Median Ratio", "Min Ratio", "Max Ratio", "SD Ratio", "Valid Ratios", "Valid %"),
+        caption = "Spectral Ratio Statistics by NLCD Land Cover Class",
+        digits = 4) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = TRUE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#4B0082") %>%
+    scroll_box(width = "100%", height = "400px")
+}
+```
+
+### NDVI by Site and NLCD Class
+
+```{r ndvi_by_site_nlcd, echo=FALSE}
+if(nrow(ndvi_successful) > 0 && "nlcdClass" %in% names(ndvi_successful)) {
+  # NDVI by site and NLCD class
+  site_nlcd_summary_ndvi <- ndvi_successful %>%
+    group_by(siteID, nlcdClass) %>%
+    summarise(
+      n_samples = n(),
+      mean_ndvi = mean(ndvi, na.rm = TRUE),
+      median_ndvi = median(ndvi, na.rm = TRUE),
+      min_ndvi = min(ndvi, na.rm = TRUE),
+      max_ndvi = max(ndvi, na.rm = TRUE),
+      sd_ndvi = sd(ndvi, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(siteID, desc(n_samples))
+  
+  kable(site_nlcd_summary_ndvi, 
+        col.names = c("Site ID", "NLCD Class", "N Samples", "Mean NDVI", "Median NDVI", "Min NDVI", "Max NDVI", "SD NDVI"),
+        caption = "NDVI Statistics by Site and NLCD Land Cover Class",
+        digits = 4) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = TRUE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#2E8B57") %>%
+    scroll_box(width = "100%", height = "600px")
+}
+```
+
+### Spectral Ratio by Site and NLCD Class
+
+```{r spectral_ratio_by_site_nlcd, echo=FALSE}
+if(nrow(ndvi_successful) > 0 && "nlcdClass" %in% names(ndvi_successful)) {
+  # Spectral ratio by site and NLCD class
+  site_nlcd_summary_ratio <- ndvi_successful %>%
+    group_by(siteID, nlcdClass) %>%
+    summarise(
+      n_samples = n(),
+      mean_ratio = mean(spectral_ratio, na.rm = TRUE),
+      median_ratio = median(spectral_ratio, na.rm = TRUE),
+      min_ratio = min(spectral_ratio, na.rm = TRUE),
+      max_ratio = max(spectral_ratio, na.rm = TRUE),
+      sd_ratio = sd(spectral_ratio, na.rm = TRUE),
+      valid_ratios = sum(ratio_valid, na.rm = TRUE),
+      valid_percentage = round(sum(ratio_valid, na.rm = TRUE)/n() * 100, 1),
+      .groups = "drop"
+    ) %>%
+    arrange(siteID, desc(n_samples))
+  
+  kable(site_nlcd_summary_ratio, 
+        col.names = c("Site ID", "NLCD Class", "N Samples", "Mean Ratio", "Median Ratio", "Min Ratio", "Max Ratio", "SD Ratio", "Valid Ratios", "Valid %"),
+        caption = "Spectral Ratio Statistics by Site and NLCD Land Cover Class",
+        digits = 4) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = TRUE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#FF8C00") %>%
+    scroll_box(width = "100%", height = "600px")
+}
+```
+
+## Site-Specific and NLCD-Based QAQC Analysis
+
+```{r qaqc_analysis, echo=FALSE, results='asis'}
+if(nrow(ndvi_successful) > 0 && "nlcdClass" %in% names(ndvi_successful)) {
+  # Perform NLCD-based QAQC checks
+  qaqc_results <- data.frame(
+    spectralSampleID = character(),
+    siteID = character(),
+    nlcdClass = character(),
+    ndvi = numeric(),
+    spectral_ratio = numeric(),
+    ratio_valid = logical(),
+    ndvi_check = character(),
+    spectral_ratio_check = character(),
+    ratio_validity_check = character(),
+    overall_status = character(),
+    stringsAsFactors = FALSE
+  )
+  
+  # Process each sample with NLCD-based thresholds
+  for(i in 1:nrow(ndvi_successful)) {
+    sample_id <- ndvi_successful$spectralSampleID[i]
+    site_id <- ndvi_successful$siteID[i]
+    nlcd_class <- ndvi_successful$nlcdClass[i]
+    ndvi_val <- ndvi_successful$ndvi[i]
+    spectral_ratio_val <- ndvi_successful$spectral_ratio[i]
+    ratio_valid_val <- ndvi_successful$ratio_valid[i]
+    
+    # Get NLCD-based thresholds
+    thresholds <- get_nlcd_thresholds(nlcd_class)
+    
+    # Perform checks
+    ndvi_check <- ifelse(ndvi_val >= thresholds$ndvi_min & ndvi_val <= thresholds$ndvi_max, "PASS", "FAIL")
+    spectral_ratio_check <- ifelse(spectral_ratio_val >= thresholds$spectral_ratio_min & 
+                                  spectral_ratio_val <= thresholds$spectral_ratio_max, "PASS", "FAIL")
+    ratio_validity_check <- ifelse(thresholds$expected_ratio_valid == ratio_valid_val, "PASS", "FAIL")
+    
+    # Overall status
+    overall_status <- ifelse(all(c(ndvi_check, spectral_ratio_check, ratio_validity_check) == "PASS"), "PASS", "FAIL")
+    
+    # Add to results
+    qaqc_results <- rbind(qaqc_results, data.frame(
+      spectralSampleID = sample_id,
+      siteID = site_id,
+      nlcdClass = nlcd_class,
+      ndvi = ndvi_val,
+      spectral_ratio = spectral_ratio_val,
+      ratio_valid = ratio_valid_val,
+      ndvi_check = ndvi_check,
+      spectral_ratio_check = spectral_ratio_check,
+      ratio_validity_check = ratio_validity_check,
+      overall_status = overall_status,
+      stringsAsFactors = FALSE
+    ))
+  }
+  
+  # Generate QAQC summary
+  qaqc_summary <- create_spectral_qaqc_summary(qaqc_results)
+  
+  # Display QAQC summary using proper markdown formatting
+  cat("### QAQC Summary Statistics\n\n")
+  cat("**Overall Results:**\n")
+  cat("- Total samples: ", qaqc_summary$total_samples, "\n", sep="")
+  cat("- Passing samples: ", qaqc_summary$passing_samples, "\n", sep="")
+  cat("- Failing samples: ", qaqc_summary$failing_samples, "\n", sep="")
+  cat("- Pass rate: ", qaqc_summary$pass_rate, "%\n\n", sep="")
+  
+  cat("**Failure Breakdown:**\n")
+  cat("- NDVI failures: ", qaqc_summary$ndvi_failures, "\n", sep="")
+  cat("- Spectral ratio failures: ", qaqc_summary$spectral_ratio_failures, "\n", sep="")
+  cat("- Ratio validity failures: ", qaqc_summary$ratio_validity_failures, "\n\n", sep="")
+  
+  # Clean up large objects to prevent accidental display
+  rm(qaqc_results)
+}
+```
+### NDVI by NLCD Class
+
+```{r ndvi_by_nlcd_plot, echo=FALSE, fig.cap="NDVI Distribution by NLCD Land Cover Class"}
+if(nrow(ndvi_successful) > 0 && "nlcdClass" %in% names(ndvi_successful)) {
+  p9 <- ggplot(ndvi_successful, aes(x = reorder(nlcdClass, ndvi, FUN = median), y = ndvi)) +
+    geom_boxplot(fill = "purple", alpha = 0.7) +
+    labs(title = "NDVI Distribution by NLCD Land Cover Class",
+         x = "NLCD Class", y = "NDVI") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+  
+  print(p9)
+}
+```
+
+### Spectral Ratio by NLCD Class
+
+```{r spectral_ratio_by_nlcd_plot, echo=FALSE, fig.cap="Spectral Ratio Distribution by NLCD Land Cover Class"}
+if(nrow(ndvi_successful) > 0 && "nlcdClass" %in% names(ndvi_successful)) {
+  p10 <- ggplot(ndvi_successful, aes(x = reorder(nlcdClass, spectral_ratio, FUN = median), y = spectral_ratio)) +
+    geom_boxplot(fill = "darkgreen", alpha = 0.7) +
+    geom_hline(yintercept = 1, color = "red", linetype = "dashed", size = 1) +
+    labs(title = "Spectral Ratio Distribution by NLCD Land Cover Class",
+         x = "NLCD Class", y = "Spectral Ratio (995-1005/495-505)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+  
+  print(p10)
+}
+```
+
+### NDVI by Site and NLCD Class (Faceted Plot)
+
+```{r ndvi_by_site_nlcd_plot, echo=FALSE, fig.cap="NDVI Distribution by Site and NLCD Land Cover Class"}
+if(nrow(ndvi_successful) > 0 && "nlcdClass" %in% names(ndvi_successful)) {
+  # Filter to sites with multiple NLCD classes for better visualization
+  site_nlcd_counts <- ndvi_successful %>%
+    group_by(siteID, nlcdClass) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    group_by(siteID) %>%
+    summarise(nlcd_classes = n(), .groups = "drop") %>%
+    filter(nlcd_classes > 1)
+  
+  if(nrow(site_nlcd_counts) > 0) {
+    p11 <- ggplot(ndvi_successful %>% 
+                    filter(siteID %in% site_nlcd_counts$siteID), 
+                  aes(x = nlcdClass, y = ndvi, fill = nlcdClass)) +
+      geom_boxplot(alpha = 0.7) +
+      facet_wrap(~siteID, scales = "free_x", ncol = 3) +
+      labs(title = "NDVI Distribution by Site and NLCD Land Cover Class",
+           x = "NLCD Class", y = "NDVI") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1),
+            plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+            legend.position = "bottom")
+    
+    print(p11)
+  } else {
+    cat("No sites found with multiple NLCD classes for faceted visualization.")
+  }
+}
+```
+
+### QAQC Results by NLCD Class
+
+```{r qaqc_by_nlcd, echo=FALSE}
+if(exists("qaqc_summary") && !is.null(qaqc_summary$nlcd_breakdown)) {
+  kable(qaqc_summary$nlcd_breakdown, 
+        col.names = c("NLCD Class", "N Samples", "Pass Rate (%)"),
+        caption = "QAQC Results by NLCD Land Cover Class") %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = FALSE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#4B0082")
+}
+```
+
+### QAQC Results by Site
+
+```{r qaqc_by_site, echo=FALSE}
+if(exists("qaqc_summary") && !is.null(qaqc_summary$site_breakdown)) {
+  kable(qaqc_summary$site_breakdown, 
+        col.names = c("Site ID", "N Samples", "Pass Rate (%)"),
+        caption = "QAQC Results by Site") %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = FALSE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#4B0082")
+}
+
+## Visualizations
+
+### NDVI Distribution
+
+```{r ndvi_distribution, echo=FALSE, fig.cap="Distribution of NDVI Values (2019-2024)"}
+if(nrow(ndvi_successful) > 0) {
+  p1 <- ggplot(ndvi_successful, aes(x = ndvi)) +
+    geom_histogram(bins = 50, fill = "steelblue", alpha = 0.7) +
+    labs(title = "Distribution of NDVI Values (2019-2024)",
+         x = "NDVI", y = "Frequency") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+  
+  print(p1)
+}
+```
+
+### Spectral Ratio Distribution
+
+```{r spectral_ratio_distribution, echo=FALSE, fig.cap="Distribution of Spectral Ratios (995-1005 nm / 495-505 nm)"}
+if(nrow(ndvi_successful) > 0) {
+  p2 <- ggplot(ndvi_successful, aes(x = spectral_ratio)) +
+    geom_histogram(bins = 50, fill = "orange", alpha = 0.7) +
+    geom_vline(xintercept = 1, color = "red", linetype = "dashed", size = 1) +
+    labs(title = "Distribution of Spectral Ratios (995-1005 nm / 495-505 nm)",
+         x = "Spectral Ratio", y = "Frequency") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+  
+  # Add annotation after plot is created
+  p2 <- p2 + annotate("text", x = 1.2, y = max(ggplot_build(p2)$data[[1]]$count) * 0.9, 
+                      label = "Ratio = 1\n(995-1005 = 495-505)", color = "red")
+  
+  print(p2)
+}
+```
+
+### NDVI by Site
+
+```{r ndvi_by_site_plot, echo=FALSE, fig.cap="NDVI Distribution by Site"}
+if(nrow(ndvi_successful) > 0) {
+  p3 <- ggplot(ndvi_successful, aes(x = reorder(siteID, ndvi, FUN = median), y = ndvi)) +
+    geom_boxplot(fill = "lightgreen", alpha = 0.7) +
+    labs(title = "NDVI Distribution by Site",
+         x = "Site ID", y = "NDVI") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+  
+  print(p3)
+}
+```
+
+### Spectral Ratio by Site
+
+```{r spectral_ratio_by_site_plot, echo=FALSE, fig.cap="Spectral Ratio Distribution by Site"}
+if(nrow(ndvi_successful) > 0) {
+  p4 <- ggplot(ndvi_successful, aes(x = reorder(siteID, spectral_ratio, FUN = median), y = spectral_ratio)) +
+    geom_boxplot(fill = "lightcoral", alpha = 0.7) +
+    geom_hline(yintercept = 1, color = "red", linetype = "dashed", size = 1) +
+    labs(title = "Spectral Ratio Distribution by Site",
+         x = "Site ID", y = "Spectral Ratio (995-1005/495-505)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+  
+  print(p4)
+}
+```
+
+
+
+### Red vs NIR Scatter Plot
+
+```{r red_vs_nir_scatter, echo=FALSE, fig.cap="Red vs NIR Reflectance with NDVI Color Coding"}
+if(nrow(ndvi_successful) > 0) {
+  p5 <- ggplot(ndvi_successful, aes(x = red_avg, y = nir_avg, color = ndvi)) +
+    geom_point(alpha = 0.6) +
+    scale_color_gradient2(low = "red", mid = "yellow", high = "green", 
+                         midpoint = median(ndvi_successful$ndvi, na.rm = TRUE)) +
+    labs(title = "Red vs NIR Reflectance with NDVI Color Coding",
+         x = "Red Reflectance (630-680 nm avg)", 
+         y = "NIR Reflectance (775-825 nm avg)",
+         color = "NDVI") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+  
+  print(p5)
+}
+```
+
+### Spectral Ratio Scatter Plot
+
+```{r spectral_ratio_scatter, echo=FALSE, fig.cap="495-505 nm vs 995-1005 nm Reflectance with Ratio Color Coding"}
+if(nrow(ndvi_successful) > 0) {
+  p6 <- ggplot(ndvi_successful, aes(x = lower_avg, y = higher_avg, color = spectral_ratio)) +
+    geom_point(alpha = 0.6) +
+    geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed", size = 1) +
+    scale_color_gradient2(low = "red", mid = "yellow", high = "green", 
+                         midpoint = median(ndvi_successful$spectral_ratio, na.rm = TRUE)) +
+    labs(title = "495-505 nm vs 995-1005 nm Reflectance with Ratio Color Coding",
+         x = "495-505 nm Reflectance", 
+         y = "995-1005 nm Reflectance",
+         color = "Spectral Ratio") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+  
+  print(p6)
+}
+```
+
+## Error Summary
+
+```{r error_summary, echo=FALSE, results='asis'}
+if(error_count > 0) {
+  error_summary <- ndvi_results %>%
+    filter(processing_status != "SUCCESS") %>%
+    group_by(processing_status) %>%
+    summarise(count = n(), .groups = "drop") %>%
+    arrange(desc(count))
+  
+  kable(error_summary, 
+        col.names = c("Error Type", "Count"),
+        caption = "Error Summary") %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = FALSE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#D7261E")
+} else {
+  cat("No errors encountered during processing.")
+}
+```
+
+## Interactive Data Table
+
+```{r interactive_table, echo=FALSE}
+if(nrow(ndvi_successful) > 0) {
+  # Create interactive table with key columns
+  ndvi_display <- ndvi_successful %>%
+    select(spectralSampleID, siteID, collectDate, ndvi, spectral_ratio, ratio_valid) %>%
+    mutate(collectDate = as.Date(collectDate))
+  
+  datatable(ndvi_display,
+            caption = "Interactive NDVI Results Table",
+            options = list(
+              pageLength = 25,
+              scrollX = TRUE,
+              dom = 'Bfrtip',
+              buttons = c('copy', 'csv', 'excel')
+            ),
+            rownames = FALSE) %>%
+    formatRound(columns = c("ndvi", "spectral_ratio"), digits = 4) %>%
+    formatDate(columns = "collectDate", method = "toLocaleDateString")
+}
+```
+
+## Conclusion
+
+This analysis provides a comprehensive overview of NDVI and spectral ratio calculations from NEON FSP data collected between 2019-2024, including NLCD-based ecological context and site-specific quality assessment. The results show:
+
+- **Data Quality**: `r round(processed_count/total_samples * 100, 1)`% success rate in processing spectral samples
+- **NDVI Range**: Values ranging from `r round(min(ndvi_successful$ndvi, na.rm = TRUE), 4)` to `r round(max(ndvi_successful$ndvi, na.rm = TRUE), 4)`
+- **Spectral Ratios**: `r round(sum(ndvi_successful$ratio_valid, na.rm = TRUE)/nrow(ndvi_successful) * 100, 1)`% of samples show expected spectral ratio patterns
+- **Spatial Coverage**: Data from `r length(unique(ndvi_successful$siteID))` NEON sites
+- **Temporal Coverage**: Data spanning `r length(unique(substr(ndvi_successful$collectDate, 1, 4)))` years
+- **Ecological Context**: Analysis across `r if("nlcdClass" %in% names(ndvi_successful)) length(unique(ndvi_successful$nlcdClass)) else 0` NLCD land cover classes
+- **QAQC Assessment**: `r if(exists("qaqc_summary")) qaqc_summary$pass_rate else "N/A"`% pass rate using NLCD-based quality thresholds
+
+The analysis reveals spatial and temporal patterns in vegetation health and spectral characteristics across the NEON network, with ecological context provided by NLCD land cover classifications. This approach enables more nuanced quality assessment that accounts for expected variation across different vegetation types and ecosystems.
+
+---
+
+*Report generated on `r Sys.Date()` using R version `r R.version.string`* 
