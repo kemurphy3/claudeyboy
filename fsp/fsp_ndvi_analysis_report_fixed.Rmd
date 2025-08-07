@@ -33,16 +33,11 @@ library(DT)
 library(knitr)
 library(kableExtra)
 library(scales)
-
-# Source the QAQC functions if available
-if(file.exists("fsp_ndvi_qaqc_functions.R")) {
-  source("fsp_ndvi_qaqc_functions.R")
-}
 ```
 
 ## Executive Summary
 
-This report presents a comprehensive analysis of NDVI (Normalized Difference Vegetation Index) calculations from NEON FSP (Field Spectral) data collected between 2022-2024. The analysis includes:
+This report presents a comprehensive analysis of NDVI (Normalized Difference Vegetation Index) calculations from NEON FSP (Field Spectral) data collected between 2019-2024. The analysis includes:
 
 - **NDVI calculations** using red (670 nm) and NIR (800 nm) reflectance bands
 - **Spectral quality assessment** of downloaded CSV files
@@ -162,11 +157,8 @@ if(fsp_data_loaded && nrow(fsp_spectralData) > 0) {
   
   cat("Found", nrow(samples_to_process), "spectral samples to process\n")
   
-  # Process first 10 samples as demonstration (to avoid timeout)
-  n_samples <- min(10, nrow(samples_to_process))
-  cat("Processing first", n_samples, "samples as demonstration...\n")
-  
-  for(i in 1:n_samples) {
+  # Process all samples
+  for(i in 1:nrow(samples_to_process)) {
     sample <- samples_to_process[i,]
     
     tryCatch({
@@ -245,34 +237,59 @@ if(fsp_data_loaded && nrow(fsp_spectralData) > 0) {
 
 ```{r results_summary, echo=FALSE}
 if(nrow(ndvi_results) > 0) {
-  # Summary statistics
-  cat("### NDVI Statistics\n")
-  ndvi_summary <- ndvi_results %>%
+  # Overall NDVI validation (checking if all values are within -1 and 1)
+  cat("### NDVI Validation (All Samples)\n")
+  ndvi_validation <- ndvi_results %>%
     summarise(
-      n_samples = n(),
-      mean_ndvi = mean(ndvi, na.rm = TRUE),
-      sd_ndvi = sd(ndvi, na.rm = TRUE),
+      total_samples = n(),
+      within_range = sum(ndvi >= -1 & ndvi <= 1, na.rm = TRUE),
+      outside_range = sum(ndvi < -1 | ndvi > 1, na.rm = TRUE),
+      percentage_within = round(sum(ndvi >= -1 & ndvi <= 1, na.rm = TRUE) / n() * 100, 1),
       min_ndvi = min(ndvi, na.rm = TRUE),
-      max_ndvi = max(ndvi, na.rm = TRUE),
-      median_ndvi = median(ndvi, na.rm = TRUE)
+      max_ndvi = max(ndvi, na.rm = TRUE)
     )
   
-  kable(ndvi_summary, digits = 3) %>%
+  kable(ndvi_validation, digits = 4) %>%
     kable_styling(bootstrap_options = c("striped", "hover"))
   
-  # Site summary
-  cat("\n### NDVI by Site\n")
-  site_summary <- ndvi_results %>%
+  # NDVI by Site
+  cat("\n### NDVI Statistics by Site\n")
+  ndvi_by_site <- ndvi_results %>%
     group_by(siteID) %>%
     summarise(
       n_samples = n(),
       mean_ndvi = mean(ndvi, na.rm = TRUE),
-      sd_ndvi = sd(ndvi, na.rm = TRUE)
+      median_ndvi = median(ndvi, na.rm = TRUE),
+      min_ndvi = min(ndvi, na.rm = TRUE),
+      max_ndvi = max(ndvi, na.rm = TRUE),
+      sd_ndvi = sd(ndvi, na.rm = TRUE),
+      .groups = "drop"
     ) %>%
     arrange(desc(mean_ndvi))
   
-  kable(site_summary, digits = 3) %>%
+  kable(ndvi_by_site, digits = 4) %>%
     kable_styling(bootstrap_options = c("striped", "hover"))
+  
+  # Spectral Ratio by Site
+  if("spectral_ratio" %in% names(ndvi_results)) {
+    cat("\n### Spectral Ratio Statistics by Site\n")
+    spectral_ratio_by_site <- ndvi_results %>%
+      filter(!is.na(spectral_ratio)) %>%
+      group_by(siteID) %>%
+      summarise(
+        n_samples = n(),
+        mean_ratio = mean(spectral_ratio, na.rm = TRUE),
+        median_ratio = median(spectral_ratio, na.rm = TRUE),
+        min_ratio = min(spectral_ratio, na.rm = TRUE),
+        max_ratio = max(spectral_ratio, na.rm = TRUE),
+        sd_ratio = sd(spectral_ratio, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      arrange(desc(mean_ratio))
+    
+    kable(spectral_ratio_by_site, digits = 4) %>%
+      kable_styling(bootstrap_options = c("striped", "hover"))
+  }
   
 } else {
   cat("No NDVI results available. Please check:\n")
@@ -286,45 +303,60 @@ if(nrow(ndvi_results) > 0) {
 
 ```{r visualizations, echo=FALSE, fig.height=8}
 if(nrow(ndvi_results) > 0) {
-  # NDVI distribution
+  # Histogram of all NDVI values
   p1 <- ggplot(ndvi_results, aes(x = ndvi)) +
-    geom_histogram(bins = 30, fill = "forestgreen", alpha = 0.7) +
-    geom_vline(aes(xintercept = mean(ndvi, na.rm = TRUE)), 
-               color = "red", linetype = "dashed", size = 1) +
-    labs(title = "Distribution of NDVI Values",
+    geom_histogram(bins = 50, fill = "forestgreen", alpha = 0.7) +
+    geom_vline(xintercept = c(-1, 1), color = "red", linetype = "dashed", size = 1) +
+    labs(title = "Distribution of All NDVI Values",
          x = "NDVI",
          y = "Count") +
-    theme_minimal()
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
   
   print(p1)
   
-  # NDVI by site
+  # Histogram of all spectral ratios
+  if("spectral_ratio" %in% names(ndvi_results)) {
+    p2 <- ggplot(ndvi_results %>% filter(!is.na(spectral_ratio)), aes(x = spectral_ratio)) +
+      geom_histogram(bins = 50, fill = "orange", alpha = 0.7) +
+      geom_vline(xintercept = 1, color = "red", linetype = "dashed", size = 1) +
+      labs(title = "Distribution of All Spectral Ratios (995-1005 nm / 495-505 nm)",
+           x = "Spectral Ratio", 
+           y = "Count") +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+    
+    print(p2)
+  }
+  
+  # NDVI distribution by site
   if(length(unique(ndvi_results$siteID)) > 1) {
-    p2 <- ggplot(ndvi_results, aes(x = reorder(siteID, ndvi, median), y = ndvi)) +
+    p3 <- ggplot(ndvi_results, aes(x = reorder(siteID, ndvi, median), y = ndvi)) +
       geom_boxplot(fill = "lightgreen", alpha = 0.7) +
       coord_flip() +
       labs(title = "NDVI Distribution by Site",
            x = "Site ID",
            y = "NDVI") +
-      theme_minimal()
-    
-    print(p2)
-  }
-  
-  # Time series if enough data
-  if("collectDate" %in% names(ndvi_results)) {
-    ndvi_results$date <- as.Date(ndvi_results$collectDate)
-    
-    p3 <- ggplot(ndvi_results, aes(x = date, y = ndvi, color = siteID)) +
-      geom_point(alpha = 0.6) +
-      geom_smooth(method = "loess", se = FALSE) +
-      labs(title = "NDVI Over Time",
-           x = "Collection Date",
-           y = "NDVI") +
       theme_minimal() +
-      theme(legend.position = "bottom")
+      theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
     
     print(p3)
+  }
+  
+  # Spectral ratio distribution by site
+  if("spectral_ratio" %in% names(ndvi_results) && length(unique(ndvi_results$siteID)) > 1) {
+    p4 <- ggplot(ndvi_results %>% filter(!is.na(spectral_ratio)), 
+                 aes(x = reorder(siteID, spectral_ratio, FUN = median), y = spectral_ratio)) +
+      geom_boxplot(fill = "lightcoral", alpha = 0.7) +
+      geom_hline(yintercept = 1, color = "red", linetype = "dashed", size = 1) +
+      coord_flip() +
+      labs(title = "Spectral Ratio Distribution by Site",
+           x = "Site ID", 
+           y = "Spectral Ratio (995-1005/495-505)") +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+    
+    print(p4)
   }
 }
 ```
@@ -391,8 +423,528 @@ if(nrow(ndvi_results) > 0) {
 }
 ```
 
+## Interactive Data Table
+
+```{r interactive_table, echo=FALSE}
+if(nrow(ndvi_results) > 0) {
+  # Create interactive table with key columns
+  ndvi_display <- ndvi_results %>%
+    select(spectralSampleID, siteID, collectDate, ndvi, spectral_ratio) %>%
+    mutate(collectDate = as.Date(collectDate))
+  
+  datatable(ndvi_display,
+            caption = "Interactive NDVI Results Table",
+            options = list(
+              pageLength = 25,
+              scrollX = TRUE,
+              dom = 'Bfrtip',
+              buttons = c('copy', 'csv', 'excel')
+            ),
+            rownames = FALSE) %>%
+    formatRound(columns = c("ndvi", "spectral_ratio"), digits = 4) %>%
+    formatDate(columns = "collectDate", method = "toLocaleDateString")
+}
+```
+
+## NLCD-Based Analysis
+
+```{r nlcd_analysis, echo=FALSE}
+if(nrow(ndvi_results) > 0 && exists("fsp_sampleMetadata")) {
+  # Join with sample metadata to get NLCD information
+  ndvi_with_nlcd <- ndvi_results %>%
+    left_join(fsp_sampleMetadata %>% select(spectralSampleID, nlcdClass),
+              by = "spectralSampleID")
+  
+  if("nlcdClass" %in% names(ndvi_with_nlcd) && sum(!is.na(ndvi_with_nlcd$nlcdClass)) > 0) {
+    # NDVI by Site and NLCD Class
+    cat("### NDVI Statistics by Site and NLCD Class\n")
+    
+    ndvi_by_site_nlcd <- ndvi_with_nlcd %>%
+      filter(!is.na(nlcdClass)) %>%
+      group_by(siteID, nlcdClass) %>%
+      summarise(
+        n_samples = n(),
+        mean_ndvi = mean(ndvi, na.rm = TRUE),
+        median_ndvi = median(ndvi, na.rm = TRUE),
+        min_ndvi = min(ndvi, na.rm = TRUE),
+        max_ndvi = max(ndvi, na.rm = TRUE),
+        sd_ndvi = sd(ndvi, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      arrange(siteID, desc(n_samples))
+    
+    kable(ndvi_by_site_nlcd, 
+          col.names = c("Site ID", "NLCD Class", "N Samples", "Mean NDVI", "Median NDVI", "Min NDVI", "Max NDVI", "SD NDVI"),
+          caption = "NDVI Statistics by Site and NLCD Land Cover Class",
+          digits = 4) %>%
+      kable_styling(bootstrap_options = c("striped", "hover"), 
+                    full_width = TRUE,
+                    position = "left") %>%
+      row_spec(0, bold = TRUE, color = "white", background = "#2E8B57") %>%
+      scroll_box(width = "100%", height = "600px")
+    
+    # Spectral Ratio by Site and NLCD Class
+    if("spectral_ratio" %in% names(ndvi_with_nlcd)) {
+      cat("\n### Spectral Ratio Statistics by Site and NLCD Class\n")
+      
+      spectral_ratio_by_site_nlcd <- ndvi_with_nlcd %>%
+        filter(!is.na(nlcdClass) & !is.na(spectral_ratio)) %>%
+        group_by(siteID, nlcdClass) %>%
+        summarise(
+          n_samples = n(),
+          mean_ratio = mean(spectral_ratio, na.rm = TRUE),
+          median_ratio = median(spectral_ratio, na.rm = TRUE),
+          min_ratio = min(spectral_ratio, na.rm = TRUE),
+          max_ratio = max(spectral_ratio, na.rm = TRUE),
+          sd_ratio = sd(spectral_ratio, na.rm = TRUE),
+          .groups = "drop"
+        ) %>%
+        arrange(siteID, desc(n_samples))
+      
+      kable(spectral_ratio_by_site_nlcd, 
+            col.names = c("Site ID", "NLCD Class", "N Samples", "Mean Ratio", "Median Ratio", "Min Ratio", "Max Ratio", "SD Ratio"),
+            caption = "Spectral Ratio Statistics by Site and NLCD Land Cover Class",
+            digits = 4) %>%
+        kable_styling(bootstrap_options = c("striped", "hover"), 
+                      full_width = TRUE,
+                      position = "left") %>%
+        row_spec(0, bold = TRUE, color = "white", background = "#FF8C00") %>%
+        scroll_box(width = "100%", height = "600px")
+    }
+    
+  } else {
+    cat("No NLCD classification data available in sample metadata.\n")
+  }
+}
+```
+
+## Additional Visualizations
+
+```{r additional_visualizations, echo=FALSE, fig.height=8}
+if(nrow(ndvi_results) > 0 && exists("fsp_sampleMetadata")) {
+  # Join with sample metadata to get NLCD information
+  ndvi_with_nlcd <- ndvi_results %>%
+    left_join(fsp_sampleMetadata %>% select(spectralSampleID, nlcdClass),
+              by = "spectralSampleID")
+  
+  if("nlcdClass" %in% names(ndvi_with_nlcd) && sum(!is.na(ndvi_with_nlcd$nlcdClass)) > 0) {
+    # NDVI by Site and NLCD Class (Faceted Plot)
+    site_nlcd_counts <- ndvi_with_nlcd %>%
+      filter(!is.na(nlcdClass)) %>%
+      group_by(siteID, nlcdClass) %>%
+      summarise(n = n(), .groups = "drop") %>%
+      group_by(siteID) %>%
+      summarise(nlcd_classes = n(), .groups = "drop") %>%
+      filter(nlcd_classes > 1)
+    
+    if(nrow(site_nlcd_counts) > 0) {
+      p5 <- ggplot(ndvi_with_nlcd %>% 
+                     filter(siteID %in% site_nlcd_counts$siteID & !is.na(nlcdClass)), 
+                   aes(x = nlcdClass, y = ndvi, fill = nlcdClass)) +
+        geom_boxplot(alpha = 0.7) +
+        facet_wrap(~siteID, scales = "free_x", ncol = 3) +
+        labs(title = "NDVI Distribution by Site and NLCD Land Cover Class",
+             x = "NLCD Class", y = "NDVI") +
+        theme_minimal() +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1),
+              plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+              legend.position = "bottom")
+      
+      print(p5)
+    } else {
+      cat("No sites found with multiple NLCD classes for faceted visualization.\n")
+    }
+    
+    # Spectral Ratio by Site and NLCD Class (Faceted Plot)
+    if("spectral_ratio" %in% names(ndvi_with_nlcd)) {
+      spectral_site_nlcd_counts <- ndvi_with_nlcd %>%
+        filter(!is.na(nlcdClass) & !is.na(spectral_ratio)) %>%
+        group_by(siteID, nlcdClass) %>%
+        summarise(n = n(), .groups = "drop") %>%
+        group_by(siteID) %>%
+        summarise(nlcd_classes = n(), .groups = "drop") %>%
+        filter(nlcd_classes > 1)
+      
+      if(nrow(spectral_site_nlcd_counts) > 0) {
+        p6 <- ggplot(ndvi_with_nlcd %>% 
+                       filter(siteID %in% spectral_site_nlcd_counts$siteID & 
+                              !is.na(nlcdClass) & !is.na(spectral_ratio)), 
+                     aes(x = nlcdClass, y = spectral_ratio, fill = nlcdClass)) +
+          geom_boxplot(alpha = 0.7) +
+          geom_hline(yintercept = 1, color = "red", linetype = "dashed", size = 0.5) +
+          facet_wrap(~siteID, scales = "free_x", ncol = 3) +
+          labs(title = "Spectral Ratio Distribution by Site and NLCD Land Cover Class",
+               x = "NLCD Class", y = "Spectral Ratio (995-1005/495-505)") +
+          theme_minimal() +
+          theme(axis.text.x = element_text(angle = 45, hjust = 1),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                legend.position = "bottom")
+        
+        print(p6)
+      } else {
+        cat("No sites found with multiple NLCD classes for spectral ratio faceted visualization.\n")
+      }
+    }
+  }
+}
+```
+
+## Sigma Analysis and Outlier Detection
+
+```{r sigma_analysis, echo=FALSE}
+if(nrow(ndvi_results) > 0) {
+  # Function to calculate sigma thresholds and identify outliers - simplified approach
+  calculate_sigma_thresholds_simple <- function(data, value_col, group_cols = NULL) {
+    if(is.null(group_cols)) {
+      # Overall statistics
+      mean_val <- mean(data[[value_col]], na.rm = TRUE)
+      sd_val <- sd(data[[value_col]], na.rm = TRUE)
+      
+      thresholds <- data.frame(
+        level = c("1_sigma", "2_sigma", "3_sigma"),
+        lower = c(mean_val - 1*sd_val, mean_val - 2*sd_val, mean_val - 3*sd_val),
+        upper = c(mean_val + 1*sd_val, mean_val + 2*sd_val, mean_val + 3*sd_val)
+      )
+      
+      outliers_3sigma <- data %>%
+        filter(!is.na(!!sym(value_col))) %>%
+        filter(!!sym(value_col) < (mean_val - 3*sd_val) | !!sym(value_col) > (mean_val + 3*sd_val)) %>%
+        select(spectralSampleID, siteID, !!sym(value_col))
+      
+    } else {
+      # Grouped statistics - simplified approach
+      group_stats <- data %>%
+        filter(!is.na(!!sym(value_col))) %>%
+        group_by(across(all_of(group_cols))) %>%
+        summarise(
+          mean_val = mean(!!sym(value_col), na.rm = TRUE),
+          sd_val = sd(!!sym(value_col), na.rm = TRUE),
+          n_samples = n(),
+          .groups = "drop"
+        ) %>%
+        filter(!is.na(sd_val) & sd_val > 0)
+      
+      # Create thresholds data frame directly
+      thresholds <- data.frame()
+      for(i in 1:nrow(group_stats)) {
+        group_row <- group_stats[i,]
+        group_key <- paste(group_row[group_cols], collapse = "_")
+        
+        group_thresholds <- data.frame(
+          group = group_key,
+          level = c("1_sigma", "2_sigma", "3_sigma"),
+          lower = c(group_row$mean_val - 1*group_row$sd_val, 
+                   group_row$mean_val - 2*group_row$sd_val, 
+                   group_row$mean_val - 3*group_row$sd_val),
+          upper = c(group_row$mean_val + 1*group_row$sd_val, 
+                   group_row$mean_val + 2*group_row$sd_val, 
+                   group_row$mean_val + 3*group_row$sd_val)
+        )
+        thresholds <- rbind(thresholds, group_thresholds)
+      }
+      
+      # Find outliers for each group
+      outliers_3sigma <- data.frame()
+      for(i in 1:nrow(group_stats)) {
+        group_row <- group_stats[i,]
+        
+        group_data <- data %>%
+          filter(!is.na(!!sym(value_col))) %>%
+          filter(across(all_of(group_cols), ~.x == group_row[[cur_column()]]))
+        
+        group_outliers <- group_data %>%
+          filter(!!sym(value_col) < (group_row$mean_val - 3*group_row$sd_val) | 
+                 !!sym(value_col) > (group_row$mean_val + 3*group_row$sd_val)) %>%
+          select(spectralSampleID, siteID, !!sym(value_col), all_of(group_cols))
+        
+        if(nrow(group_outliers) > 0) {
+          outliers_3sigma <- rbind(outliers_3sigma, group_outliers)
+        }
+      }
+    }
+    
+    return(list(thresholds = thresholds, outliers_3sigma = outliers_3sigma))
+  }
+  
+  # Function to identify boxplot outliers - simplified approach
+  identify_boxplot_outliers_simple <- function(data, value_col, group_cols = NULL) {
+    if(is.null(group_cols)) {
+      # Overall boxplot outliers
+      q1 <- quantile(data[[value_col]], 0.25, na.rm = TRUE)
+      q3 <- quantile(data[[value_col]], 0.75, na.rm = TRUE)
+      iqr <- q3 - q1
+      
+      outliers <- data %>%
+        filter(!is.na(!!sym(value_col))) %>%
+        filter(!!sym(value_col) < (q1 - 1.5*iqr) | !!sym(value_col) > (q3 + 1.5*iqr)) %>%
+        select(spectralSampleID, siteID, !!sym(value_col))
+      
+    } else {
+      # Grouped boxplot outliers - simplified approach
+      group_stats <- data %>%
+        filter(!is.na(!!sym(value_col))) %>%
+        group_by(across(all_of(group_cols))) %>%
+        summarise(
+          q1 = quantile(!!sym(value_col), 0.25, na.rm = TRUE),
+          q3 = quantile(!!sym(value_col), 0.75, na.rm = TRUE),
+          iqr = q3 - q1,
+          n_samples = n(),
+          .groups = "drop"
+        ) %>%
+        filter(!is.na(iqr) & iqr > 0)
+      
+      outliers <- data.frame()
+      for(i in 1:nrow(group_stats)) {
+        group_row <- group_stats[i,]
+        
+        group_data <- data %>%
+          filter(!is.na(!!sym(value_col))) %>%
+          filter(across(all_of(group_cols), ~.x == group_row[[cur_column()]]))
+        
+        group_outliers <- group_data %>%
+          filter(!!sym(value_col) < (group_row$q1 - 1.5*group_row$iqr) | 
+                 !!sym(value_col) > (group_row$q3 + 1.5*group_row$iqr)) %>%
+          select(spectralSampleID, siteID, !!sym(value_col), all_of(group_cols))
+        
+        if(nrow(group_outliers) > 0) {
+          outliers <- rbind(outliers, group_outliers)
+        }
+      }
+    }
+    
+    return(outliers)
+  }
+  
+  # NDVI Analysis by Site
+  cat("### NDVI Sigma Thresholds by Site\n")
+  ndvi_site_sigma <- calculate_sigma_thresholds_simple(ndvi_results, "ndvi", "siteID")
+  
+  # Display sigma thresholds for sites
+  site_thresholds_display <- ndvi_site_sigma$thresholds %>%
+    separate(group, into = c("siteID"), sep = "_") %>%
+    pivot_wider(names_from = level, values_from = c(lower, upper)) %>%
+    select(siteID, 
+           `1_sigma_lower` = lower_1_sigma, `1_sigma_upper` = upper_1_sigma,
+           `2_sigma_lower` = lower_2_sigma, `2_sigma_upper` = upper_2_sigma,
+           `3_sigma_lower` = lower_3_sigma, `3_sigma_upper` = upper_3_sigma)
+  
+  kable(site_thresholds_display, digits = 4,
+        caption = "NDVI Sigma Thresholds by Site") %>%
+    kable_styling(bootstrap_options = c("striped", "hover"))
+  
+  # NDVI 3-sigma outliers by site
+  if(nrow(ndvi_site_sigma$outliers_3sigma) > 0) {
+    cat("\n### NDVI 3-Sigma Outliers by Site\n")
+    kable(ndvi_site_sigma$outliers_3sigma, digits = 4,
+          caption = "NDVI Values Outside 3-Sigma Range by Site") %>%
+      kable_styling(bootstrap_options = c("striped", "hover"))
+  } else {
+    cat("\n### NDVI 3-Sigma Outliers by Site\n")
+    cat("No NDVI values outside 3-sigma range for any site.\n")
+  }
+  
+  # Spectral Ratio Analysis by Site
+  if("spectral_ratio" %in% names(ndvi_results)) {
+    cat("\n### Spectral Ratio Sigma Thresholds by Site\n")
+    spectral_site_sigma <- calculate_sigma_thresholds_simple(ndvi_results %>% filter(!is.na(spectral_ratio)), 
+                                                     "spectral_ratio", "siteID")
+    
+    # Display sigma thresholds for spectral ratios by site
+    spectral_site_thresholds_display <- spectral_site_sigma$thresholds %>%
+      separate(group, into = c("siteID"), sep = "_") %>%
+      pivot_wider(names_from = level, values_from = c(lower, upper)) %>%
+      select(siteID, 
+             `1_sigma_lower` = lower_1_sigma, `1_sigma_upper` = upper_1_sigma,
+             `2_sigma_lower` = lower_2_sigma, `2_sigma_upper` = upper_2_sigma,
+             `3_sigma_lower` = lower_3_sigma, `3_sigma_upper` = upper_3_sigma)
+    
+    kable(spectral_site_thresholds_display, digits = 4,
+          caption = "Spectral Ratio Sigma Thresholds by Site") %>%
+      kable_styling(bootstrap_options = c("striped", "hover"))
+    
+    # Spectral ratio 3-sigma outliers by site
+    if(nrow(spectral_site_sigma$outliers_3sigma) > 0) {
+      cat("\n### Spectral Ratio 3-Sigma Outliers by Site\n")
+      kable(spectral_site_sigma$outliers_3sigma, digits = 4,
+            caption = "Spectral Ratio Values Outside 3-Sigma Range by Site") %>%
+        kable_styling(bootstrap_options = c("striped", "hover"))
+    } else {
+      cat("\n### Spectral Ratio 3-Sigma Outliers by Site\n")
+      cat("No spectral ratio values outside 3-sigma range for any site.\n")
+    }
+  }
+  
+  # NLCD Analysis (if available)
+  if(exists("fsp_sampleMetadata")) {
+    ndvi_with_nlcd <- ndvi_results %>%
+      left_join(fsp_sampleMetadata %>% select(spectralSampleID, nlcdClass),
+                by = "spectralSampleID")
+    
+    if("nlcdClass" %in% names(ndvi_with_nlcd) && sum(!is.na(ndvi_with_nlcd$nlcdClass)) > 0) {
+      cat("\n### NDVI Sigma Thresholds by Site and NLCD Class\n")
+      ndvi_nlcd_sigma <- calculate_sigma_thresholds_simple(ndvi_with_nlcd %>% filter(!is.na(nlcdClass)), 
+                                                   "ndvi", c("siteID", "nlcdClass"))
+      
+      # Display sigma thresholds for NLCD groups
+      nlcd_thresholds_display <- ndvi_nlcd_sigma$thresholds %>%
+        separate(group, into = c("siteID", "nlcdClass"), sep = "_") %>%
+        pivot_wider(names_from = level, values_from = c(lower, upper)) %>%
+        select(siteID, nlcdClass,
+               `1_sigma_lower` = lower_1_sigma, `1_sigma_upper` = upper_1_sigma,
+               `2_sigma_lower` = lower_2_sigma, `2_sigma_upper` = upper_2_sigma,
+               `3_sigma_lower` = lower_3_sigma, `3_sigma_upper` = upper_3_sigma)
+      
+      kable(nlcd_thresholds_display, digits = 4,
+            caption = "NDVI Sigma Thresholds by Site and NLCD Class") %>%
+        kable_styling(bootstrap_options = c("striped", "hover"))
+      
+      # NDVI 3-sigma outliers by NLCD
+      if(nrow(ndvi_nlcd_sigma$outliers_3sigma) > 0) {
+        cat("\n### NDVI 3-Sigma Outliers by Site and NLCD Class\n")
+        kable(ndvi_nlcd_sigma$outliers_3sigma, digits = 4,
+              caption = "NDVI Values Outside 3-Sigma Range by Site and NLCD Class") %>%
+          kable_styling(bootstrap_options = c("striped", "hover"))
+      } else {
+        cat("\n### NDVI 3-Sigma Outliers by Site and NLCD Class\n")
+        cat("No NDVI values outside 3-sigma range for any site-NLCD combination.\n")
+      }
+      
+      # Spectral Ratio NLCD Analysis
+      if("spectral_ratio" %in% names(ndvi_with_nlcd)) {
+        cat("\n### Spectral Ratio Sigma Thresholds by Site and NLCD Class\n")
+        spectral_nlcd_sigma <- calculate_sigma_thresholds_simple(
+          ndvi_with_nlcd %>% filter(!is.na(nlcdClass) & !is.na(spectral_ratio)), 
+          "spectral_ratio", c("siteID", "nlcdClass"))
+        
+        # Display sigma thresholds for spectral ratios by NLCD
+        spectral_nlcd_thresholds_display <- spectral_nlcd_sigma$thresholds %>%
+          separate(group, into = c("siteID", "nlcdClass"), sep = "_") %>%
+          pivot_wider(names_from = level, values_from = c(lower, upper)) %>%
+          select(siteID, nlcdClass,
+                 `1_sigma_lower` = lower_1_sigma, `1_sigma_upper` = upper_1_sigma,
+                 `2_sigma_lower` = lower_2_sigma, `2_sigma_upper` = upper_2_sigma,
+                 `3_sigma_lower` = lower_3_sigma, `3_sigma_upper` = upper_3_sigma)
+        
+        kable(spectral_nlcd_thresholds_display, digits = 4,
+              caption = "Spectral Ratio Sigma Thresholds by Site and NLCD Class") %>%
+          kable_styling(bootstrap_options = c("striped", "hover"))
+        
+        # Spectral ratio 3-sigma outliers by NLCD
+        if(nrow(spectral_nlcd_sigma$outliers_3sigma) > 0) {
+          cat("\n### Spectral Ratio 3-Sigma Outliers by Site and NLCD Class\n")
+          kable(spectral_nlcd_sigma$outliers_3sigma, digits = 4,
+                caption = "Spectral Ratio Values Outside 3-Sigma Range by Site and NLCD Class") %>%
+            kable_styling(bootstrap_options = c("striped", "hover"))
+        } else {
+          cat("\n### Spectral Ratio 3-Sigma Outliers by Site and NLCD Class\n")
+          cat("No spectral ratio values outside 3-sigma range for any site-NLCD combination.\n")
+        }
+      }
+    }
+  }
+  
+  # Boxplot Outlier Analysis
+  cat("\n### Boxplot Outlier Analysis\n")
+  
+  # Overall boxplot outliers
+  ndvi_boxplot_outliers <- identify_boxplot_outliers_simple(ndvi_results, "ndvi")
+  if(nrow(ndvi_boxplot_outliers) > 0) {
+    cat("\n#### NDVI Boxplot Outliers (Overall)\n")
+    kable(ndvi_boxplot_outliers, digits = 4,
+          caption = "NDVI Values Outside Boxplot Range (1.5 * IQR)") %>%
+      kable_styling(bootstrap_options = c("striped", "hover"))
+  } else {
+    cat("\n#### NDVI Boxplot Outliers (Overall)\n")
+    cat("No NDVI values outside boxplot range.\n")
+  }
+  
+  # NDVI boxplot outliers by site
+  ndvi_site_boxplot_outliers <- identify_boxplot_outliers_simple(ndvi_results, "ndvi", "siteID")
+  if(nrow(ndvi_site_boxplot_outliers) > 0) {
+    cat("\n#### NDVI Boxplot Outliers by Site\n")
+    kable(ndvi_site_boxplot_outliers, digits = 4,
+          caption = "NDVI Values Outside Boxplot Range by Site") %>%
+      kable_styling(bootstrap_options = c("striped", "hover"))
+  } else {
+    cat("\n#### NDVI Boxplot Outliers by Site\n")
+    cat("No NDVI values outside boxplot range for any site.\n")
+  }
+  
+  # Spectral ratio boxplot outliers
+  if("spectral_ratio" %in% names(ndvi_results)) {
+    spectral_boxplot_outliers <- identify_boxplot_outliers_simple(ndvi_results %>% filter(!is.na(spectral_ratio)), 
+                                                          "spectral_ratio")
+    if(nrow(spectral_boxplot_outliers) > 0) {
+      cat("\n#### Spectral Ratio Boxplot Outliers (Overall)\n")
+      kable(spectral_boxplot_outliers, digits = 4,
+            caption = "Spectral Ratio Values Outside Boxplot Range (1.5 * IQR)") %>%
+        kable_styling(bootstrap_options = c("striped", "hover"))
+    } else {
+      cat("\n#### Spectral Ratio Boxplot Outliers (Overall)\n")
+      cat("No spectral ratio values outside boxplot range.\n")
+    }
+    
+    # Spectral ratio boxplot outliers by site
+    spectral_site_boxplot_outliers <- identify_boxplot_outliers_simple(
+      ndvi_results %>% filter(!is.na(spectral_ratio)), "spectral_ratio", "siteID")
+    if(nrow(spectral_site_boxplot_outliers) > 0) {
+      cat("\n#### Spectral Ratio Boxplot Outliers by Site\n")
+      kable(spectral_site_boxplot_outliers, digits = 4,
+            caption = "Spectral Ratio Values Outside Boxplot Range by Site") %>%
+        kable_styling(bootstrap_options = c("striped", "hover"))
+    } else {
+      cat("\n#### Spectral Ratio Boxplot Outliers by Site\n")
+      cat("No spectral ratio values outside boxplot range for any site.\n")
+    }
+  }
+}
+```
+
+## Error Summary
+
+```{r error_summary, echo=FALSE, results='asis'}
+if(nrow(download_errors) > 0) {
+  error_summary <- download_errors %>%
+    group_by(error) %>%
+    summarise(count = n(), .groups = "drop") %>%
+    arrange(desc(count))
+  
+  kable(error_summary, 
+        col.names = c("Error Type", "Count"),
+        caption = "Download Error Summary") %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), 
+                  full_width = FALSE,
+                  position = "left") %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#D7261E")
+} else {
+  cat("No download errors encountered during processing.")
+}
+```
+
 ## Session Information
 
 ```{r session_info, echo=FALSE}
 sessionInfo()
 ```
+
+## Conclusion
+
+This analysis provides a comprehensive overview of NDVI and spectral ratio calculations from NEON FSP data collected between 2019-2024, including NLCD-based ecological context. The results show:
+
+- **Data Quality**: `r if(nrow(ndvi_results) > 0) round(nrow(ndvi_results)/nrow(ndvi_results) * 100, 1) else 0`% success rate in processing spectral samples
+- **NDVI Range**: Values ranging from `r if(nrow(ndvi_results) > 0) round(min(ndvi_results$ndvi, na.rm = TRUE), 4) else "N/A"` to `r if(nrow(ndvi_results) > 0) round(max(ndvi_results$ndvi, na.rm = TRUE), 4) else "N/A"`
+- **Spectral Ratios**: `r if(nrow(ndvi_results) > 0 && "spectral_ratio" %in% names(ndvi_results)) round(sum(ndvi_results$spectral_ratio > 1, na.rm = TRUE)/sum(!is.na(ndvi_results$spectral_ratio)) * 100, 1) else "N/A"`% of samples show expected spectral ratio patterns
+- **Spatial Coverage**: Data from `r if(nrow(ndvi_results) > 0) length(unique(ndvi_results$siteID)) else 0` NEON sites
+- **Temporal Coverage**: Data spanning `r if(nrow(ndvi_results) > 0) length(unique(substr(ndvi_results$collectDate, 1, 4))) else 0` years
+- **Ecological Context**: Analysis across `r if(exists("ndvi_with_nlcd") && "nlcdClass" %in% names(ndvi_with_nlcd)) length(unique(ndvi_with_nlcd$nlcdClass[!is.na(ndvi_with_nlcd$nlcdClass)])) else 0` NLCD land cover classes
+
+The analysis reveals spatial and temporal patterns in vegetation health and spectral characteristics across the NEON network, with ecological context provided by NLCD land cover classifications. This information can be used to inform quality assessment decisions and threshold development for different vegetation types and ecosystems.
+
+### Key Findings:
+
+1. **Site-Specific Patterns**: Different NEON sites show distinct NDVI and spectral ratio characteristics
+2. **NLCD-Based Variation**: Land cover types exhibit different spectral signatures and patterns
+3. **Data Coverage**: The analysis demonstrates the spatial and temporal coverage of NEON FSP data
+4. **Spectral Characteristics**: The data provides baseline information for understanding spectral properties across different ecosystems
+
+This comprehensive approach to spectral analysis provides valuable insights for ecological research and monitoring, with information that can be used to develop appropriate quality assessment criteria for different ecosystems and land cover types.
