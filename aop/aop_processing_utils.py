@@ -3994,6 +3994,67 @@ def getMosaic(Files,MosaicType,MosaicExtents,Band,resX=1,resY=1):
     return FullExtent
 
 
+def convertProblematicTiff(input_file, output_file=None):
+    """
+    Convert a TIFF file with incompatible format to a standard format.
+    This handles cases where SampleFormat=IEEEFP with BitsPerSample=8.
+    """
+    if output_file is None:
+        output_file = input_file.replace('.tif', '_converted.tif')
+    
+    # First try GDAL
+    try:
+        from osgeo import gdal
+        
+        # Open the source file
+        src_ds = gdal.Open(input_file)
+        if src_ds is None:
+            raise RuntimeError(f"Could not open {input_file} with GDAL")
+        
+        # Create output with proper data type
+        driver = gdal.GetDriverByName('GTiff')
+        dst_ds = driver.CreateCopy(output_file, src_ds, options=['COMPRESS=LZW', 'PREDICTOR=2'])
+        
+        # Clean up
+        src_ds = None
+        dst_ds = None
+        
+        return output_file
+    except ImportError:
+        print("GDAL not available, trying PIL/Pillow approach...")
+    except Exception as e:
+        print(f"GDAL conversion failed: {e}, trying PIL/Pillow approach...")
+    
+    # Fallback to PIL/Pillow
+    try:
+        from PIL import Image
+        import numpy as np
+        
+        # Open with PIL
+        img = Image.open(input_file)
+        
+        # Convert to numpy array and then back to ensure proper format
+        img_array = np.array(img)
+        
+        # Create new image with proper format
+        if len(img_array.shape) == 3:
+            # Multi-band image
+            new_img = Image.fromarray(img_array.astype(np.uint8))
+        else:
+            # Single band
+            new_img = Image.fromarray(img_array.astype(np.uint8), mode='L')
+        
+        # Save with proper settings
+        new_img.save(output_file, 'TIFF', compression='tiff_lzw')
+        
+        return output_file
+    except ImportError:
+        print("PIL/Pillow not available")
+        return None
+    except Exception as e:
+        print(f"PIL/Pillow conversion failed: {e}")
+        return None
+
 def getMapExtentsForMosiac(Files):
     FileName, FileExtension = os.path.splitext(Files[0])
     
@@ -4002,9 +4063,34 @@ def getMapExtentsForMosiac(Files):
         for File in Files:
             if os.path.getsize(File) < 10:
                 continue
-            src = rio.open(File)
-            RasterIoFilesToMosaicInfo.append(src)
-            src.close()
+            try:
+                src = rio.open(File)
+                RasterIoFilesToMosaicInfo.append(src)
+                src.close()
+            except rio.errors.RasterioIOError as e:
+                # Handle TIFF files with incompatible format specifications
+                if "SampleFormat=IEEEFP and BitsPerSample=8" in str(e):
+                    print(f"Warning: File has incompatible format: {File}")
+                    print(f"Attempting to convert the file...")
+                    converted_file = convertProblematicTiff(File)
+                    if converted_file and os.path.exists(converted_file):
+                        try:
+                            src = rio.open(converted_file)
+                            RasterIoFilesToMosaicInfo.append(src)
+                            src.close()
+                            print(f"Successfully converted and opened: {converted_file}")
+                        except Exception as e2:
+                            print(f"Failed to open converted file: {e2}")
+                            continue
+                    else:
+                        print(f"Skipping file: {File}")
+                        continue
+                else:
+                    raise
+        
+        if not RasterIoFilesToMosaicInfo:
+            raise ValueError("No valid TIFF files could be opened for mosaic processing")
+            
         xs = []
         ys = []
         for src in RasterIoFilesToMosaicInfo:

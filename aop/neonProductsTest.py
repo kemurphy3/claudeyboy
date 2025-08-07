@@ -16,7 +16,7 @@ nisLibDir = os.path.join(currentFile.lower().split('gold_pipeline')[0], 'Gold_Pi
 if nisLibDir not in sys.path:
     sys.path.insert(0, nisLibDir)
 
-from aop_processing_utils import *
+from aop_processing_utils_k8m_v1 import *
 
 if __name__ == '__main__':
 

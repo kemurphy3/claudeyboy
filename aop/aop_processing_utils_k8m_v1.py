@@ -3636,7 +3636,24 @@ def writeRasterToTif(OutRaster,Mosaic,Bounds,EPSG,NODATA,RasterCellWidth,RasterC
 
     #Transform = Affine.translation(float(Bounds[0]) - RasterCellWidth / 2, float(Bounds[3]) - RasterCellHeight / 2) * Affine.scale( RasterCellWidth,  -RasterCellHeight)
     Transform = Affine.translation(float(Bounds[0]), float(Bounds[3])) * Affine.scale( RasterCellWidth,  -RasterCellHeight)
-    NewDataset = rio.open(OutRaster,'w',driver='GTiff',compress='LZW',NUM_THREADS='ALL_CPUS',height=Mosaic.shape[0],width=Mosaic.shape[1],count=Mosaic.shape[2],dtype=Mosaic.dtype,crs=str('EPSG:'+str(EPSG)),nodata=NODATA,transform=Transform,overwrite=True,BIGTIFF='YES')
+    
+    # Ensure proper data type for TIFF writing
+    # Fix for "SampleFormat=IEEEFP and BitsPerSample=8" error
+    if Mosaic.dtype == np.uint8 or str(Mosaic.dtype) == 'uint8':
+        # If it's uint8 but might be incorrectly flagged as float, ensure it's properly typed
+        output_dtype = np.uint8
+    elif Mosaic.dtype in [np.float16, np.float32, np.float64]:
+        # Convert float data to appropriate integer type to avoid TIFF format issues
+        if 'Radiance' in OutRaster and Mosaic.dtype != np.int16:
+            # Already converted to int16 above
+            output_dtype = Mosaic.dtype
+        else:
+            # For other float data, convert to uint16 or float32
+            output_dtype = np.float32
+    else:
+        output_dtype = Mosaic.dtype
+    
+    NewDataset = rio.open(OutRaster,'w',driver='GTiff',compress='LZW',NUM_THREADS='ALL_CPUS',height=Mosaic.shape[0],width=Mosaic.shape[1],count=Mosaic.shape[2],dtype=output_dtype,crs=str('EPSG:'+str(EPSG)),nodata=NODATA,transform=Transform,overwrite=True,BIGTIFF='YES')
     #NewDataset.write(Mosaic)
     NewDataset.write(np.moveaxis(Mosaic,[0,1,2],[1,2,0]))
 
@@ -4279,9 +4296,23 @@ def getMapExtentsForMosiac(Files):
         for File in Files:
             if os.path.getsize(File) < 10:
                 continue
-            src = rio.open(File)
-            RasterIoFilesToMosaicInfo.append(src)
-            src.close()
+            try:
+                src = rio.open(File)
+                RasterIoFilesToMosaicInfo.append(src)
+                src.close()
+            except rio.errors.RasterioIOError as e:
+                if "SampleFormat=IEEEFP and BitsPerSample=8" in str(e):
+                    print(f"\nERROR: Invalid TIFF format in file: {File}")
+                    print(f"This file has an incompatible format (8-bit with IEEE floating point).")
+                    print(f"The file needs to be regenerated with proper data type.")
+                    print(f"Full error: {e}\n")
+                    # Try to identify which processing step created this file
+                    if "RGB_radiance_mosaic" in File:
+                        print("This appears to be a mosaic file. The issue likely occurred during TIFF creation.")
+                        print("The writeRasterToTif function has been updated to prevent this in future runs.")
+                    raise RuntimeError(f"Cannot continue due to invalid TIFF format in {File}. Please delete this file and re-run the processing.")
+                else:
+                    raise
         xs = []
         ys = []
         for src in RasterIoFilesToMosaicInfo:
