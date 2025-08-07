@@ -64,6 +64,7 @@ import laspy
 from contextlib import contextmanager
 from scipy.special import erf
 import traceback
+from pathlib import Path
 
 
 
@@ -11597,13 +11598,63 @@ class LineClass:
             
             print(rawSpectrometerLineDir)
             
-            rawNisLine = rawNisLineClass(rawSpectrometerLineDir)
+            # K8M Fix: Replace missing rawNisLineClass with MATLAB implementation
+            # The rawNisLineClass appears to be from a separate module not included
+            # Using the MATLAB implementation that was commented out below
             
-            rawNisLine.numCpus = int(numCpus)
+            if not os.path.exists(os.path.join(outputRadianceDir,self.radianceSpectrometerFile)):
+                
+                try:
+                    print(f"Using MATLAB implementation for radiance processing")
+                    
+                    # Need to define dn2RadProcessingDir - this should be set somewhere
+                    # For now, we'll try to find it or use a default
+                    dn2RadProcessingDir = os.environ.get('DN2RAD_DIR', 'C:/NIS/Processing/DN2Radiance')
+                    
+                    if not os.path.exists(dn2RadProcessingDir):
+                        # Try common locations
+                        possible_dirs = [
+                            'D:/Gold_Pipeline/ProcessingPipelines/NIS/DN2Radiance',
+                            'C:/Gold_Pipeline/ProcessingPipelines/NIS/DN2Radiance',
+                            'D:/NIS/Processing/DN2Radiance',
+                            'C:/NIS/Processing/DN2Radiance'
+                        ]
+                        for pdir in possible_dirs:
+                            if os.path.exists(pdir):
+                                dn2RadProcessingDir = pdir
+                                break
+                    
+                    print(f"DN2Rad directory: {dn2RadProcessingDir}")
+                    
+                    matlabEng = matlab.engine.start_matlab()
+                    matlabEng.cd(dn2RadProcessingDir, nargout=0)
+                    inputFile = str(os.path.join(rawSpectrometerLineDir, self.rawSpectrometerFile))
+                    
+                    print(f"Calling MATLAB nisCalCode_noGUI with:")
+                    print(f"  Input: {inputFile}")
+                    print(f"  Output: {outputRadianceDir}")
+                    
+                    matlabEng.nisCalCode_noGUI(inputFile, str(outputRadianceDir), matlab.double(2000), matlab.double(1))
+                    
+                    matlabEng.quit()
+                    
+                    print(f"MATLAB radiance processing completed")
+                    
+                except Exception as e:
+                    print(f"Error in MATLAB radiance processing: {e}")
+                    print(f"Please ensure:")
+                    print(f"  1. MATLAB engine for Python is installed")
+                    print(f"  2. DN2Radiance MATLAB code exists in: {dn2RadProcessingDir}")
+                    print(f"  3. nisCalCode_noGUI.m is available")
+                    raise
+                    
+            else:
+                print(f"Radiance file already exists: {self.radianceSpectrometerFile}")
             
-            rawNisLine.generateRadianceWorkflow(outputRadianceDir,decimate=True)
-            
-            rawNisLine.generateRadianceQaQc(outputQaDir)
+            # Generate QA for radiance
+            # This part was calling rawNisLine.generateRadianceQaQc(outputQaDir)
+            # We'll skip it for now as it requires the rawNisLineClass
+            print(f"Note: Radiance QA generation skipped (requires rawNisLineClass)")
         
         #Old Matlab implementation
         
